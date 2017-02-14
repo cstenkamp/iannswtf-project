@@ -19,9 +19,10 @@ import collections
 import math
 from six.moves import xrange  # pylint: disable=redefined-builtin
 from scipy.spatial.distance import cosine
+import datetime
 
-NAME = "test"
-num_steps = 10001
+NAME = "train"
+num_steps = 150001
 
 
 
@@ -297,6 +298,8 @@ def printcloseones(dataset, word):
 
 #==============================================================================
 
+print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
+
 if Path("./"+NAME+"ratings_mit_wordvecs.pkl").is_file():
     with open(NAME+'ratings_mit_wordvecs.pkl', 'rb') as input:
         moviedat = pickle.load(input)       
@@ -333,9 +336,14 @@ else:
 #plot_tsne(final_embeddings, moviedat)
 
 
-printcloseones(moviedat, "he")
+printcloseones(moviedat, "woman")
+printcloseones(moviedat, "<dot>")
+printcloseones(moviedat, "movie")
+printcloseones(moviedat, "his")
+printcloseones(moviedat, "bad")
+printcloseones(moviedat, "three")
 
-
+print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
 
 
 
