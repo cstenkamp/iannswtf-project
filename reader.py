@@ -8,8 +8,6 @@ Created on Fri Feb 10 12:22:43 2017
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
-
 import pickle
 from pathlib import Path
 import tensorflow as tf
@@ -18,19 +16,30 @@ import copy
 import numpy as np
 #np.set_printoptions(threshold=np.nan)
 import collections
-
-
 import math
 from six.moves import xrange  # pylint: disable=redefined-builtin
-
+from scipy.spatial.distance import cosine
 
 NAME = "test"
+num_steps = 10001
 
-num_steps = 100001
 
+
+class moviedata(object):
+    def __init__(self, reviews, targets, lookup, uplook, count):
+        self.reviews = reviews
+        self.targets = targets
+        self.lookup = lookup
+        self.ohnum = count+1  #len(lookup)
+        self.uplook = uplook
+        
+    def add_wordvectors(self, wordvecs):
+        self.wordvecs = wordvecs
+
+
+#==============================================================================
 
 ## first we create, save & load the words as indices.
-
 def make_dataset():
     HOWMANY = 99999999
     allwords = {}
@@ -97,50 +106,9 @@ def make_dataset():
                 ratetargets.append(0)
             else:
                 ratetargets.append(1)
-    
-
-    
     moviedat = moviedata(ratings,ratetargets,allwords,reverse_dictionary,wordcount)
     return moviedat
 
-
-
-
-class moviedata(object):
-    def __init__(self, reviews, targets, lookup, uplook, count):
-        self.reviews = reviews
-        self.targets = targets
-        self.lookup = lookup
-        self.ohnum = count+1  #len(lookup)
-        self.uplook = uplook
-        
-    def add_wordvectors(self, wordvecs):
-        self.wordvecs = wordvecs
-
-
-#==============================================================================
-
-my_file = Path("./"+NAME+"ratings_ohne_wordvecs.pkl")
-if not my_file.is_file():
-    moviedat = make_dataset()
-    with open(NAME+'ratings_ohne_wordvecs.pkl', 'wb') as output:
-        pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)
-else:
-    with open(NAME+'ratings_ohne_wordvecs.pkl', 'rb') as input:
-        moviedat = pickle.load(input)     
-    
-
-print(""+str(moviedat.ohnum)+" different words.")
-rand = round(random.uniform(0,len(moviedat.targets)))
-print('Sample review', moviedat.reviews[rand][0:100], [moviedat.uplook[i] for i in moviedat.reviews[rand][0:100]])
-
-
-## let's get to word2vec (https://www.tensorflow.org/tutorials/word2vec/)
-#TODO: CBOW statt skip-gram, da wir nen kleines dataset haben!
-
-
-permutation = np.random.permutation(len(moviedat.targets))
-dindex = [0,0]
 
 
 
@@ -155,12 +123,12 @@ def generate_batch(batch_size, num_skips, skip_window, dataset):
     buffer = collections.deque(maxlen=span)
     for _ in range(span):
       global permutation
-      buffer.append(dataset[permutation[(dindex[0] % len(permutation))]][dindex[1]])
+      buffer.append(dataset.reviews[permutation[(dindex[0] % len(permutation))]][dindex[1]])
       dindex[1] = dindex[1] + 1
-      if dindex[1] >= len(dataset[permutation[(dindex[0] % len(permutation))]]):
+      if dindex[1] >= len(dataset.reviews[permutation[(dindex[0] % len(permutation))]]):
           dindex[1] = 0
           dindex[0] = dindex[0] + 1
-          permutation = np.random.permutation(len(moviedat.targets))      
+          permutation = np.random.permutation(len(dataset.targets))      
     for i in range(batch_size // num_skips):
       target = skip_window  # target label at the center of the buffer
       targets_to_avoid = [skip_window]
@@ -170,21 +138,14 @@ def generate_batch(batch_size, num_skips, skip_window, dataset):
         targets_to_avoid.append(target)
         batch[i * num_skips + j] = buffer[skip_window]
         labels[i * num_skips + j, 0] = buffer[target]
-      buffer.append(dataset[permutation[(dindex[0] % len(permutation))]][dindex[1]])
+      buffer.append(dataset.reviews[permutation[(dindex[0] % len(permutation))]][dindex[1]])
       dindex[1] = dindex[1] + 1
-      if dindex[1] >= len(dataset[permutation[(dindex[0] % len(permutation))]]):
+      if dindex[1] >= len(dataset.reviews[permutation[(dindex[0] % len(permutation))]]):
           dindex[1] = 0
           dindex[0] = dindex[0] + 1
-          permutation = np.random.permutation(len(moviedat.targets))      
+          permutation = np.random.permutation(len(dataset.targets))      
     return batch, labels
 
-batch, labels = generate_batch(batch_size=8, num_skips=2, skip_window=1, dataset=moviedat.reviews)
-for i in range(8):
-  print(batch[i], moviedat.uplook[batch[i]], '->', labels[i, 0], moviedat.uplook[labels[i, 0]])
-
-
-
-#zwischen 2 generateten batches sind 1-2 wörter lücke, don't ask me why.
 
 
 
@@ -214,7 +175,7 @@ def perform_word2vec(dataset):
       with tf.device('/cpu:0'):
         # Look up embeddings for inputs.
         embeddings = tf.Variable(
-            tf.random_uniform([moviedat.ohnum, embedding_size], -1.0, 1.0))
+            tf.random_uniform([dataset.ohnum, embedding_size], -1.0, 1.0))
         embed = tf.nn.embedding_lookup(embeddings, train_inputs)
     
         # Construct the variables for the NCE loss
@@ -258,7 +219,7 @@ def perform_word2vec(dataset):
       average_loss = 0
       for step in xrange(num_steps):
         batch_inputs, batch_labels = generate_batch(
-            batch_size, num_skips, skip_window, dataset=dataset.reviews)
+            batch_size, num_skips, skip_window, dataset=dataset)
         feed_dict = {train_inputs: batch_inputs, train_labels: batch_labels}
     
         # We perform one update step by evaluating the optimizer op (including it
@@ -285,22 +246,13 @@ def perform_word2vec(dataset):
               close_word = dataset.uplook[nearest[k]]
               log_str = "%s %s," % (log_str, close_word)
             print(log_str)
+            
       final_embeddings = normalized_embeddings.eval()
     return final_embeddings
     
 
 
-final_embeddings = perform_word2vec(moviedat)
-moviedat.add_wordvectors(final_embeddings)
-with open(NAME+'ratings_mit_wordvecs.pkl', 'wb') as output:
-    pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)  
-
-
-
-
-
 # Step 6: Visualize the embeddings.
-
 def plot_tsne(final_embeddings, dataset):
     def plot_with_labels(low_dim_embs, labels, filename='tsne.png'):
         assert low_dim_embs.shape[0] >= len(labels), "More labels than embeddings"
@@ -329,9 +281,59 @@ def plot_tsne(final_embeddings, dataset):
 
 
 
+def closeones(dataset, indices):
+    for i in indices:
+        top_k = 5  # number of nearest neighbors
+        dists = np.zeros(dataset.wordvecs.shape[0])
+        for j in range(len(dataset.wordvecs)):
+            dists[j] = cosine(dataset.wordvecs[i],dataset.wordvecs[j])
+        dists[i] = float('inf')
+        clos = np.argsort(dists)[:top_k]
+        return [moviedat.uplook[i] for i in clos]
 
-plot_tsne(final_embeddings, moviedat)
+def printcloseones(dataset, word):
+    print("Close to '",word.replace(" ",""),"': ",closeones(dataset,[dataset.lookup[word]]))
+    
 
+#==============================================================================
+
+if Path("./"+NAME+"ratings_mit_wordvecs.pkl").is_file():
+    with open(NAME+'ratings_mit_wordvecs.pkl', 'rb') as input:
+        moviedat = pickle.load(input)       
+
+else:
+    if Path("./"+NAME+"ratings_ohne_wordvecs.pkl").is_file():
+        with open(NAME+'ratings_ohne_wordvecs.pkl', 'rb') as input:
+            moviedat = pickle.load(input)  
+            
+    else:
+        moviedat = make_dataset()
+        print(""+str(moviedat.ohnum)+" different words.")
+        rand = round(random.uniform(0,len(moviedat.targets)))
+        print('Sample review', moviedat.reviews[rand][0:100], [moviedat.uplook[i] for i in moviedat.reviews[rand][0:100]])
+        
+        with open(NAME+'ratings_ohne_wordvecs.pkl', 'wb') as output:
+            pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)
+       
+    ## let's get to word2vec (https://www.tensorflow.org/tutorials/word2vec/)
+    #TODO: CBOW statt skip-gram, da wir nen kleines dataset haben!
+    permutation = np.random.permutation(len(moviedat.targets))
+    dindex = [0,0]
+    batch, labels = generate_batch(batch_size=8, num_skips=2, skip_window=1, dataset=moviedat)
+    for i in range(8):
+      print(batch[i], moviedat.uplook[batch[i]], '->', labels[i, 0], moviedat.uplook[labels[i, 0]])
+    #zwischen 2 generateten batches sind 1-2 wörter lücke, don't ask me why.
+
+    final_embeddings = perform_word2vec(moviedat)
+    moviedat.add_wordvectors(final_embeddings)
+    with open(NAME+'ratings_mit_wordvecs.pkl', 'wb') as output:
+        pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)  
+
+
+#plot_tsne(final_embeddings, moviedat)
+
+
+printcloseones(moviedat, "he")
 
 
 
@@ -360,3 +362,43 @@ plot_tsne(final_embeddings, moviedat)
 #   _, cur_loss = session.run([optimizer, loss], feed_dict=feed_dict)
 #     
 #==============================================================================
+
+
+#def print_closeones(dataset, indices):
+#    
+#    graph = tf.Graph()
+#    with graph.as_default():
+#        with tf.device('/cpu:0'):
+#
+#            embeddings = tf.Variable(tf.random_uniform([dataset.ohnum, embedding_size], -1.0, 1.0))
+#            embed = tf.nn.embedding_lookup(embeddings, train_inputs)
+#
+#            norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
+#            normalized_embeddings = embeddings / norm
+#            valid_embeddings = tf.nn.embedding_lookup(normalized_embeddings, valid_dataset)
+#            similarity = tf.matmul(valid_embeddings, normalized_embeddings, transpose_b=True)            
+#            
+#            init = tf.global_variables_initializer()
+#            
+#            with tf.Session(graph=graph) as session:
+#                # We must initialize all variables before we use them.
+#                init.run()
+#                print("Initialized")    
+#                average_loss = 0
+#              
+#                batch_inputs, batch_labels = generate_batch(batch_size, num_skips, skip_window, dataset=dataset)
+#                feed_dict = {train_inputs: batch_inputs, train_labels: batch_labels}
+#                _, loss_val = session.run([optimizer, loss], feed_dict=feed_dict)
+#            
+#                sim = similarity.eval()
+#
+#
+#                for i in indices:
+#                    valid_word = dataset.uplook[i]
+#                    top_k = 8  # number of nearest neighbors
+#                    nearest = (-sim[i, :]).argsort()[1:top_k + 1]
+#                    log_str = "Nearest to %s:" % valid_word
+#                    for k in xrange(top_k):
+#                        close_word = dataset.uplook[nearest[k]]
+#                        log_str = "%s %s," % (log_str, close_word)
+#                    print(log_str)
