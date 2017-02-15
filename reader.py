@@ -20,9 +20,11 @@ import math
 from six.moves import xrange  # pylint: disable=redefined-builtin
 from scipy.spatial.distance import cosine
 import datetime
+import matplotlib.pyplot as plt
 
-NAME = "train"
-num_steps = 150001
+
+NAME = "test"
+num_steps = 100001
 
 
 
@@ -295,6 +297,61 @@ def closeones(dataset, indices):
 def printcloseones(dataset, word):
     print("Close to '",word.replace(" ",""),"': ",closeones(dataset,[dataset.lookup[word]]))
     
+def showstringlenghts(dataset,percentage,printstuff):
+    lens = []
+    for i in dataset.reviews:
+        lens.append(len(i))
+    bins = np.arange(0, 1001, 50)   #bins = np.arange(0, max(lens), 75)
+    if printstuff: plt.xlim([min(lens)-5, 1000+5])  #plt.xlim([min(lens)-5, max(lens)+5])
+    if printstuff: plt.hist(lens, bins=bins, alpha=0.5)
+    if printstuff: plt.title('Lenghts of the strings')
+    if printstuff: plt.show()
+    lens.sort()
+    return lens[(round(len(lens)*percentage))-1]
+
+def shortendata(dataset, percentage, lohnenderstring, printstuff):
+    if printstuff: print("Shortening the Strings...")
+    maxlen = showstringlenghts(dataset,percentage,printstuff) #75% of data has a maxlength of 312, soo...
+    if printstuff: print(maxlen)                          
+    if printstuff: print(len(dataset.reviews))
+    i = 0
+    while True:
+        if len(dataset.reviews[i]) > maxlen:
+            if len(dataset.reviews[i][maxlen+1:]) > lohnenderstring:
+                dataset.reviews.append(dataset.reviews[i][maxlen+1:])
+                dataset.targets.append(dataset.targets[i])
+            dataset.reviews[i] = dataset.reviews[i][:maxlen]
+        i = i+1
+        if i >= len(dataset.reviews):
+            break
+    if printstuff: print("to.....")  
+    if printstuff: print(showstringlenghts(dataset,percentage,True))
+    if printstuff: print(len(dataset.reviews)) 
+    if printstuff: print("to.....")
+    for i in range(len(dataset.reviews)):
+        if len(dataset.reviews[i]) < maxlen:
+            diff = maxlen - len(dataset.reviews[i])
+            dataset.reviews[i].extend([-1]*diff)
+    if printstuff: print(showstringlenghts(dataset,percentage,True))    
+    dataset.lookup["<END>"] = -1
+    dataset.uplook[-1] = "<END>"
+    
+            
+def showarating(dataset,number):
+    array = [moviedat.uplook[i] for i in dataset.reviews[number]]
+    str = ' '.join(array)
+    str = str.replace(" <comma>", ",")
+    str = str.replace(" <colon>", ":")
+    str = str.replace(" <openBracket>", "(")
+    str = str.replace(" <closeBracket>", ")")
+    str = str.replace(" <dot>", ".")
+    str = str.replace(" <dots>", "...")
+    str = str.replace(" <semicolon>", ";")
+    str = str.replace("<quote>", '"')
+    str = str.replace(" <question>", "?")
+    str = str.replace(" <exclamation>", "?")
+    print(str)
+        
 
 #==============================================================================
 
@@ -333,19 +390,23 @@ else:
         pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)  
 
 
+#TODO: Word2vec auf training+testing dataset laufen lassen
+#TODO: Muss das mit auffüllenden <end>-tokens gefüllt werden BEVOR das word2vec drauf läuft?
+
 #plot_tsne(final_embeddings, moviedat)
+#printcloseones(moviedat, "woman")
+#printcloseones(moviedat, "<dot>")
+#printcloseones(moviedat, "movie")
+#printcloseones(moviedat, "his")
+#printcloseones(moviedat, "bad")
+#printcloseones(moviedat, "three")
+
+shortendata(moviedat,.75,30, False)
 
 
-printcloseones(moviedat, "woman")
-printcloseones(moviedat, "<dot>")
-printcloseones(moviedat, "movie")
-printcloseones(moviedat, "his")
-printcloseones(moviedat, "bad")
-printcloseones(moviedat, "three")
+
 
 print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
-
-
 
 #==============================================================================
 #      
