@@ -335,6 +335,9 @@ def shortendata(dataset, percentage, lohnenderstring, printstuff):
     if printstuff: print(showstringlenghts(dataset,percentage,True))    
     dataset.lookup["<END>"] = -1
     dataset.uplook[-1] = "<END>"
+    dataset.wordvecs = np.append(dataset.wordvecs,np.transpose(np.transpose([[0]*len(dataset.wordvecs[1])])),axis=0)
+    #letzteres geht, da eine [-1] als index den letzten vektor addressiert
+
     
             
 def showarating(dataset,number):
@@ -403,7 +406,12 @@ else:
 
 shortendata(moviedat,.75,30, False)
 
+word = [moviedat.wordvecs[i] for i in moviedat.reviews[0]]
 
+input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
+target = tf.placeholder(tf.float32, [batch_size, n_classes])
+
+    
 
 
 print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
