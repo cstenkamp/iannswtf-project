@@ -5,9 +5,9 @@ Created on Fri Feb 10 12:22:43 2017
 @author: csten_000
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+#from __future__ import absolute_import
+#from __future__ import division
+#from __future__ import print_function
 import pickle
 from pathlib import Path
 import tensorflow as tf
@@ -440,42 +440,3 @@ print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
 #     
 #==============================================================================
 
-
-#def print_closeones(dataset, indices):
-#    
-#    graph = tf.Graph()
-#    with graph.as_default():
-#        with tf.device('/cpu:0'):
-#
-#            embeddings = tf.Variable(tf.random_uniform([dataset.ohnum, embedding_size], -1.0, 1.0))
-#            embed = tf.nn.embedding_lookup(embeddings, train_inputs)
-#
-#            norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
-#            normalized_embeddings = embeddings / norm
-#            valid_embeddings = tf.nn.embedding_lookup(normalized_embeddings, valid_dataset)
-#            similarity = tf.matmul(valid_embeddings, normalized_embeddings, transpose_b=True)            
-#            
-#            init = tf.global_variables_initializer()
-#            
-#            with tf.Session(graph=graph) as session:
-#                # We must initialize all variables before we use them.
-#                init.run()
-#                print("Initialized")    
-#                average_loss = 0
-#              
-#                batch_inputs, batch_labels = generate_batch(batch_size, num_skips, skip_window, dataset=dataset)
-#                feed_dict = {train_inputs: batch_inputs, train_labels: batch_labels}
-#                _, loss_val = session.run([optimizer, loss], feed_dict=feed_dict)
-#            
-#                sim = similarity.eval()
-#
-#
-#                for i in indices:
-#                    valid_word = dataset.uplook[i]
-#                    top_k = 8  # number of nearest neighbors
-#                    nearest = (-sim[i, :]).argsort()[1:top_k + 1]
-#                    log_str = "Nearest to %s:" % valid_word
-#                    for k in xrange(top_k):
-#                        close_word = dataset.uplook[nearest[k]]
-#                        log_str = "%s %s," % (log_str, close_word)
-#                    print(log_str)
