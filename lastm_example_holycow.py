@@ -12,6 +12,7 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
+np.set_printoptions(threshold=np.nan)
 import tensorflow as tf
 #import imdb
 from keras.datasets import imdb              #loading imdb data

@@ -8,6 +8,7 @@ Created on Fri Feb 10 12:22:43 2017
 #from __future__ import absolute_import
 #from __future__ import division
 #from __future__ import print_function
+
 import pickle
 from pathlib import Path
 import tensorflow as tf
@@ -21,11 +22,14 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 from scipy.spatial.distance import cosine
 import datetime
 import matplotlib.pyplot as plt
+import sys
+
+NAME = "train"
+num_steps_w2v = 100001
 
 
-NAME = "test"
-num_steps = 100001
-
+class config(object):
+    embedding_size = 128
 
 
 class moviedata(object):
@@ -155,7 +159,6 @@ def generate_batch(batch_size, num_skips, skip_window, dataset):
 # Step 4: Build and train a skip-gram model.
 def perform_word2vec(dataset):
     batch_size = 128
-    embedding_size = 128  # Dimension of the embedding vector.
     skip_window = 1       # How many words to consider left and right.
     num_skips = 2         # How many times to reuse an input to generate a label.
     
@@ -174,17 +177,15 @@ def perform_word2vec(dataset):
       train_labels = tf.placeholder(tf.int32, shape=[batch_size, 1])
       valid_dataset = tf.constant(valid_examples, dtype=tf.int32)
     
-      # Ops and variables pinned to the CPU because of missing GPU implementation
-      with tf.device('/cpu:0'):
+     
+      with tf.device('/cpu:0'): #GPU implementation nonexistant yet
+      
         # Look up embeddings for inputs.
-        embeddings = tf.Variable(
-            tf.random_uniform([dataset.ohnum, embedding_size], -1.0, 1.0))
+        embeddings = tf.Variable(tf.random_uniform([dataset.ohnum, config.embedding_size], -1.0, 1.0))
         embed = tf.nn.embedding_lookup(embeddings, train_inputs)
     
         # Construct the variables for the NCE loss
-        nce_weights = tf.Variable(
-            tf.truncated_normal([dataset.ohnum, embedding_size],
-                                stddev=1.0 / math.sqrt(embedding_size)))
+        nce_weights = tf.Variable(tf.truncated_normal([dataset.ohnum, config.embedding_size],stddev=1.0 / math.sqrt(config.embedding_size)))
         nce_biases = tf.Variable(tf.zeros([dataset.ohnum]))
     
       # Compute the average NCE loss for the batch.
@@ -204,23 +205,21 @@ def perform_word2vec(dataset):
       # Compute the cosine similarity between minibatch examples and all embeddings.
       norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
       normalized_embeddings = embeddings / norm
-      valid_embeddings = tf.nn.embedding_lookup(
-          normalized_embeddings, valid_dataset)
-      similarity = tf.matmul(
-          valid_embeddings, normalized_embeddings, transpose_b=True)
+      valid_embeddings = tf.nn.embedding_lookup(normalized_embeddings, valid_dataset)
+      similarity = tf.matmul(valid_embeddings, normalized_embeddings, transpose_b=True)
     
       # Add variable initializer.
       init = tf.global_variables_initializer()
     
     
     # Step 5: Begin training.
-    global num_steps
+    global num_steps_w2v
     with tf.Session(graph=graph) as session:
       # We must initialize all variables before we use them.
       init.run()
       print("Initialized")    
       average_loss = 0
-      for step in xrange(num_steps):
+      for step in xrange(num_steps_w2v):
         batch_inputs, batch_labels = generate_batch(
             batch_size, num_skips, skip_window, dataset=dataset)
         feed_dict = {train_inputs: batch_inputs, train_labels: batch_labels}
@@ -294,8 +293,10 @@ def closeones(dataset, indices):
         clos = np.argsort(dists)[:top_k]
         return [moviedat.uplook[i] for i in clos]
 
+
 def printcloseones(dataset, word):
     print("Close to '",word.replace(" ",""),"': ",closeones(dataset,[dataset.lookup[word]]))
+
     
 def showstringlenghts(dataset,percentage,printstuff):
     lens = []
@@ -308,6 +309,7 @@ def showstringlenghts(dataset,percentage,printstuff):
     if printstuff: plt.show()
     lens.sort()
     return lens[(round(len(lens)*percentage))-1]
+
 
 def shortendata(dataset, percentage, lohnenderstring, printstuff):
     if printstuff: print("Shortening the Strings...")
@@ -337,7 +339,7 @@ def shortendata(dataset, percentage, lohnenderstring, printstuff):
     dataset.uplook[-1] = "<END>"
     dataset.wordvecs = np.append(dataset.wordvecs,np.transpose(np.transpose([[0]*len(dataset.wordvecs[1])])),axis=0)
     #letzteres geht, da eine [-1] als index den letzten vektor addressiert
-
+    return maxlen
     
             
 def showarating(dataset,number):
@@ -353,12 +355,26 @@ def showarating(dataset,number):
     str = str.replace("<quote>", '"')
     str = str.replace(" <question>", "?")
     str = str.replace(" <exclamation>", "?")
+    str = str.replace(" <hyphen>  ","-")
+    str = str.replace(" <END>", "")
+    str = str.replace(" <SuperQuestion>", "???")
     print(str)
         
+
+
+def to_one_hot(y):
+    y_one_hot = []
+    for row in y:
+        if row == 0:
+            y_one_hot.append([1.0, 0.0])
+        else:
+            y_one_hot.append([0.0, 1.0])
+    return np.array([np.array(row) for row in y_one_hot])
 
 #==============================================================================
 
 print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
+print('Loading data...')
 
 if Path("./"+NAME+"ratings_mit_wordvecs.pkl").is_file():
     with open(NAME+'ratings_mit_wordvecs.pkl', 'rb') as input:
@@ -404,12 +420,166 @@ else:
 #printcloseones(moviedat, "bad")
 #printcloseones(moviedat, "three")
 
-shortendata(moviedat,.75,30, False)
+num_steps = shortendata(moviedat,.1,30, False) #.75
+print("Max-Len:",num_steps)
 
-word = [moviedat.wordvecs[i] for i in moviedat.reviews[0]]
+X_train = np.asarray(moviedat.reviews)
+X_train[X_train < 0] = moviedat.ohnum
+y_train = to_one_hot(np.asarray(moviedat.targets))
 
-input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
-target = tf.placeholder(tf.float32, [batch_size, n_classes])
+
+X_train = np.concatenate([X_train[:10000], X_train[12501:22501]])  #weg damit
+y_train = np.concatenate([y_train[:10000], y_train[12501:22501]])
+
+percentage = sum([item[0] for item in y_train])/len([item[0] for item in y_train])*100
+
+print(round(percentage),"% of data is positive")
+                 
+
+print('Data loaded.')
+#=============================================================================
+#OK. Now lets get to the actual LSTM, but using our pre-trained wordvectors.
+#http://stackoverflow.com/questions/35687678/using-a-pre-trained-word-embedding-word2vec-or-glove-in-tensorflow?rq=1
+
+
+
+def create_batches(data_X, data_Y, batch_size):
+    perm = np.random.permutation(data_X.shape[0])
+    data_X = data_X[perm]
+    data_Y = data_Y[perm]
+    for idx in range(data_X.shape[0] // batch_size):
+        x_batch = data_X[batch_size * idx : batch_size * (idx + 1)]
+        y_batch = data_Y[batch_size * idx : batch_size * (idx + 1)]
+        yield x_batch, y_batch
+
+
+
+
+
+with tf.Graph().as_default(), tf.Session() as session:
+    initializer = tf.random_uniform_initializer(-0.1,0.1)
+    
+    with tf.variable_scope("model", reuse=None, initializer=initializer):
+        is_training = True
+        batch_size = 32
+    
+        input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
+        target = tf.placeholder(tf.float32, [batch_size, 2]) #2 = n_classes
+    
+        #non-stateful LSTM
+        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(config.embedding_size, forget_bias=0.0, state_is_tuple=True)
+        #128 ist hidden_size (=#Vectors???)
+        
+        if is_training:
+            lstm_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_cell, output_keep_prob=0.5)
+            
+        #what are you?? leave out?? (für multiple layers)
+        cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * 1, state_is_tuple=True)
+    
+        initial_state = cell.zero_state(batch_size, tf.float32)
+    
+        
+        with tf.device("/cpu:0"):
+            embedding = tf.get_variable("embedding", [moviedat.ohnum+1, 128], dtype=tf.float32)
+            inputs = tf.nn.embedding_lookup(embedding, input_data)
+            
+#        embedding = tf.Variable(moviedat.wordvecs, name="inputs", dtype=tf.float32)
+#        inputs = tf.nn.embedding_lookup(embedding, input_data)    
+    
+        if is_training:
+            inputs = tf.nn.dropout(inputs, 0.5)
+    
+        #DIES IST DAS ORIGINAL
+        output, state = tf.nn.dynamic_rnn(cell, inputs, initial_state=initial_state)
+    
+        #DIES IST VON LUKAS
+        #output, state = tf.nn.rnn(lstm_cell, inputs, initial_state = initial_state)
+    
+        output = tf.transpose(output, [1, 0, 2])
+        last = tf.gather(output, int(output.get_shape()[0]) - 1)
+        
+        softmax_w = tf.get_variable("softmax_w", [128, 2], dtype=tf.float32)
+        softmax_b = tf.get_variable("softmax_b", [2], dtype=tf.float32)
+        logits = tf.matmul(last, softmax_w) + softmax_b
+        
+        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, target))
+        final_state = state
+    
+        correct_pred = tf.equal(tf.argmax(target, 1), tf.argmax(logits, 1))
+        accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+        
+        if is_training:
+            tvars = tf.trainable_variables()
+            grads, _ = tf.clip_by_global_norm(tf.gradients(cost, tvars), 5)
+            train_op = tf.train.AdamOptimizer().minimize(cost)
+               
+        
+            
+    init = tf.global_variables_initializer()
+    init.run()
+
+    for i in range(6):
+        
+        step = 0
+        acc_accuracy = 0
+        for x_batch, y_batch in create_batches(X_train, y_train, batch_size):
+            
+            #print("Progress: %d%%" % ((round(step/(X_train.shape[0] // batch_size)*100))), end='\r')
+            #sys.stdout.flush()
+            
+            accuracy2, cost2, _ = session.run([accuracy,cost, train_op], feed_dict={input_data: x_batch, target: y_batch})
+            step += 1
+            acc_accuracy += accuracy2
+            
+        train_accuracy = acc_accuracy / step
+        
+        print("Epoch: %d \t Train Accuracy: %.3f" % (i + 1, train_accuracy))          
+
+        saver = tf.train.Saver()
+        saver.save(session, "./movierateweights.ckpt")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#W = tf.Variable(tf.constant(0.0, shape=[moviedat.ohnum+1, config.embedding_size]), trainable=False, name="W")
+#
+#embedding_placeholder = tf.placeholder(tf.float32, [moviedat.ohnum+1, config.embedding_size])
+#embedding_init = W.assign(embedding_placeholder)
+#
+#
+#sess = tf.Session()
+#
+#sess.run(embedding_init, feed_dict={embedding_placeholder: moviedat.wordvecs})
+
+
+#inputs = tf.placeholder(tf.int32, [batch_size, num_steps])
+#targets = tf.placeholder(tf.float32, [batch_size, n_classes])
 
     
 
