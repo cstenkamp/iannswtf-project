@@ -21,6 +21,9 @@ import matplotlib.pyplot as plt
 
 
 
+w2vsamplecount = 0
+
+
 class config(object):
     TRAINNAME = "train"
     TESTNAME = "test"
@@ -28,13 +31,11 @@ class config(object):
     
     w2v_usesets = [True, True, True]
     embedding_size = 128
-    num_steps_w2v = 200001 #198000 ist einmal durchs ganze dataset
+    num_steps_w2v = 200001 #198000 ist einmal durchs ganze dataset (falls nach word2vec gekürzt)
     
     TRAIN_STEPS = 20
     batch_size = 32
     
-w2vsamplecount = 0
-
 
 
 class moviedata(object):
@@ -49,10 +50,141 @@ class moviedata(object):
         self.ohnum = count+1  #len(lookup)
         self.uplook = uplook
         
+        
     def add_wordvectors(self, wordvecs):
         self.wordvecs = wordvecs
 
 
+    def showstringlenghts(self, whichones, percentage, printstuff):
+        lens = []
+        if whichones[0]:
+            for i in self.trainreviews:
+                lens.append(len(i))
+        if whichones[1]:
+            for i in self.testreviews:
+                lens.append(len(i))
+        if whichones[2]:
+            for i in self.validreviews:
+                lens.append(len(i))
+        bins = np.arange(0, 1001, 50)   #bins = np.arange(0, max(lens), 75)
+        if printstuff: 
+            plt.xlim([min(lens)-5, 1000+5])  #plt.xlim([min(lens)-5, max(lens)+5])
+            plt.hist(lens, bins=bins, alpha=0.5)
+            plt.title('Lenghts of the strings')
+            plt.show()
+        lens.sort()
+        return lens[(round(len(lens)*percentage))-1]
+    
+    #TODO: BUG: Das shortendata macht halbe wörter...! Es müsste nach worten brechen! :/
+    def shortendata(self, whichones, percentage, lohnenderstring, printstuff):
+        maxlen = self.showstringlenghts(whichones,percentage,printstuff) #75% of data has a maxlength of 312, soo...
+        if printstuff: 
+            print("Shortening the Strings...")
+            print("Max.length: ",self.showstringlenghts(whichones,1,False))             
+            print("Amount: ", len(self.trainreviews) if whichones[0] else 0 + len(self.testreviews) if whichones[1] else 0  + len(self.validreviews)  if whichones[2] else 0)
+            
+        if whichones[0]:     
+            i = 0
+            while True:
+                if len(self.trainreviews[i]) > maxlen:
+                    if len(self.trainreviews[i][maxlen+1:]) > lohnenderstring:
+                        self.trainreviews.append(self.trainreviews[i][maxlen+1:])
+                        self.traintargets.append(self.traintargets[i])
+                    self.trainreviews[i] = self.trainreviews[i][:maxlen]
+                i = i+1
+                if i >= len(self.trainreviews):
+                    break
+        if whichones[1]:     
+            i = 0
+            while True:
+                if len(self.testreviews[i]) > maxlen:
+                    if len(self.testreviews[i][maxlen+1:]) > lohnenderstring:
+                        self.testreviews.append(self.testreviews[i][maxlen+1:])
+                        self.testtargets.append(self.testtargets[i])
+                    self.testreviews[i] = self.testreviews[i][:maxlen]
+                i = i+1
+                if i >= len(self.testreviews):
+                    break  
+        if whichones[2]:     
+            i = 0
+            while True:
+                if len(self.validreviews[i]) > maxlen:
+                    if len(self.validreviews[i][maxlen+1:]) > lohnenderstring:
+                        self.validreviews.append(self.validreviews[i][maxlen+1:])
+                        self.validtargets.append(self.validtargets[i])
+                    self.validreviews[i] = self.validreviews[i][:maxlen]
+                i = i+1
+                if i >= len(self.validreviews):
+                    break
+        if printstuff: 
+            print("to.....")  
+            print(self.showstringlenghts(whichones,percentage,True))
+            print("Amount: ", len(self.trainreviews) if whichones[0] else 0 + len(self.testreviews) if whichones[1] else 0  + len(self.validreviews)  if whichones[2] else 0)
+            print("to.....")
+        
+        if whichones[0]:    
+            for i in range(len(self.trainreviews)):
+                if len(self.trainreviews[i]) < maxlen:
+                    diff = maxlen - len(self.trainreviews[i])
+                    self.trainreviews[i].extend([self.ohnum]*diff)
+        if whichones[1]:    
+            for i in range(len(self.testreviews)):
+                if len(self.testreviews[i]) < maxlen:
+                    diff = maxlen - len(self.testreviews[i])
+                    self.testreviews[i].extend([self.ohnum]*diff)
+        if whichones[2]:    
+            for i in range(len(self.validreviews)):
+                if len(self.validreviews[i]) < maxlen:
+                    diff = maxlen - len(self.validreviews[i])
+                    self.validreviews[i].extend([self.ohnum]*diff)
+        
+        if printstuff: print(self.showstringlenghts(whichones,percentage,True))   
+        try:
+            _ = self.lookup["<END>"]
+        except KeyError:
+            self.lookup["<END>"] = self.ohnum
+            self.uplook[self.ohnum] = "<END>"
+            self.ohnum += 1 #nur falls noch kein end-token drin ist+1!
+        if hasattr(self, 'wordvecs'): #falls man es NACH word2vec ausführt
+            self.wordvecs = np.append(self.wordvecs,np.transpose(np.transpose([[0]*config.embedding_size])),axis=0)
+        self.maxlenstring = maxlen
+        return maxlen
+    
+
+    def closeones(self, indices):
+        for i in indices:
+            top_k = 5  # number of nearest neighbors
+            dists = np.zeros(self.wordvecs.shape[0])
+            for j in range(len(self.wordvecs)):
+                dists[j] = cosine(self.wordvecs[i],self.wordvecs[j])
+            dists[i] = float('inf')
+            clos = np.argsort(dists)[:top_k]
+            return [moviedat.uplook[i] for i in clos]
+    
+    
+    def printcloseones(self, word):
+        print("Close to '",word.replace(" ",""),"': ",self.closeones([self.lookup[word]]))
+    
+                  
+    def showarating(self,number):
+        array = [moviedat.uplook[i] for i in self.trainreviews[number]]
+        str = ' '.join(array)
+        str = str.replace(" <comma>", ",")
+        str = str.replace(" <colon>", ":")
+        str = str.replace(" <openBracket>", "(")
+        str = str.replace(" <closeBracket>", ")")
+        str = str.replace(" <dot>", ".")
+        str = str.replace(" <dots>", "...")
+        str = str.replace(" <semicolon>", ";")
+        str = str.replace("<quote>", '"')
+        str = str.replace(" <question>", "?")
+        str = str.replace(" <exclamation>", "!")
+        str = str.replace(" <hyphen>  ","-")
+        str = str.replace(" <END>", "")
+        str = str.replace(" <SuperQuestion>", "???")
+        str = str.replace(" <SuperExclamation>", "!!!")
+        print(str)
+        
 #==============================================================================
 
 ## first we create, save & load the words as indices.
@@ -125,7 +257,7 @@ def make_dataset(whichsets = [True, True, True]):
                         ratetargets[currset].append(0)
                     else:
                         ratetargets[currset].append(1)
-        
+            
     #we made a dataset! :)
     moviedat = moviedata(ratings[0], ratetargets[0],
                          ratings[1], ratetargets[1],
@@ -133,6 +265,10 @@ def make_dataset(whichsets = [True, True, True]):
                          allwords, reverse_dictionary, wordcount)
     
     return moviedat
+
+
+
+        
 
 
 
@@ -329,131 +465,6 @@ def plot_tsne(final_embeddings, dataset):
 
 
 
-def closeones(dataset, indices):
-    for i in indices:
-        top_k = 5  # number of nearest neighbors
-        dists = np.zeros(dataset.wordvecs.shape[0])
-        for j in range(len(dataset.wordvecs)):
-            dists[j] = cosine(dataset.wordvecs[i],dataset.wordvecs[j])
-        dists[i] = float('inf')
-        clos = np.argsort(dists)[:top_k]
-        return [moviedat.uplook[i] for i in clos]
-
-
-def printcloseones(dataset, word):
-    print("Close to '",word.replace(" ",""),"': ",closeones(dataset,[dataset.lookup[word]]))
-
-  
-def showstringlenghts(dataset, whichones, percentage, printstuff):
-    lens = []
-    if whichones[0]:
-        for i in dataset.trainreviews:
-            lens.append(len(i))
-    if whichones[1]:
-        for i in dataset.testreviews:
-            lens.append(len(i))
-    if whichones[2]:
-        for i in dataset.validationreviews:
-            lens.append(len(i))
-    bins = np.arange(0, 1001, 50)   #bins = np.arange(0, max(lens), 75)
-    if printstuff: 
-        plt.xlim([min(lens)-5, 1000+5])  #plt.xlim([min(lens)-5, max(lens)+5])
-        plt.hist(lens, bins=bins, alpha=0.5)
-        plt.title('Lenghts of the strings')
-        plt.show()
-    lens.sort()
-    return lens[(round(len(lens)*percentage))-1]
-
-
-def shortendata(dataset, whichones, percentage, lohnenderstring, printstuff):
-    maxlen = showstringlenghts(dataset,whichones,percentage,printstuff) #75% of data has a maxlength of 312, soo...
-    if printstuff: 
-        print("Shortening the Strings...")
-        print("Max.length: ",maxlen)             
-        print("Amount: ", len(dataset.trainreviews) if whichones[0] else 0 + len(dataset.testreviews) if whichones[1] else 0  + len(dataset.validreviews)  if whichones[2] else 0)
-        
-    if whichones[0]:     
-        i = 0
-        while True:
-            if len(dataset.trainreviews[i]) > maxlen:
-                if len(dataset.trainreviews[i][maxlen+1:]) > lohnenderstring:
-                    dataset.trainreviews.append(dataset.trainreviews[i][maxlen+1:])
-                    dataset.traintargets.append(dataset.traintargets[i])
-                dataset.trainreviews[i] = dataset.trainreviews[i][:maxlen]
-            i = i+1
-            if i >= len(dataset.trainreviews):
-                break
-    if whichones[1]:     
-        i = 0
-        while True:
-            if len(dataset.testreviews[i]) > maxlen:
-                if len(dataset.testreviews[i][maxlen+1:]) > lohnenderstring:
-                    dataset.testreviews.append(dataset.testreviews[i][maxlen+1:])
-                    dataset.testtargets.append(dataset.testtargets[i])
-                dataset.testreviews[i] = dataset.testreviews[i][:maxlen]
-            i = i+1
-            if i >= len(dataset.testreviews):
-                break  
-    if whichones[2]:     
-        i = 0
-        while True:
-            if len(dataset.validreviews[i]) > maxlen:
-                if len(dataset.validreviews[i][maxlen+1:]) > lohnenderstring:
-                    dataset.validreviews.append(dataset.validreviews[i][maxlen+1:])
-                    dataset.validtargets.append(dataset.validtargets[i])
-                dataset.validreviews[i] = dataset.validreviews[i][:maxlen]
-            i = i+1
-            if i >= len(dataset.validreviews):
-                break
-    if printstuff: 
-        print("to.....")  
-        print(showstringlenghts(dataset,whichones,percentage,True))
-        print("Amount: ", len(dataset.trainreviews) if whichones[0] else 0 + len(dataset.testreviews) if whichones[1] else 0  + len(dataset.validreviews)  if whichones[2] else 0)
-        print("to.....")
-    
-    if whichones[0]:    
-        for i in range(len(dataset.trainreviews)):
-            if len(dataset.trainreviews[i]) < maxlen:
-                diff = maxlen - len(dataset.trainreviews[i])
-                dataset.trainreviews[i].extend([dataset.ohnum]*diff)
-    if whichones[1]:    
-        for i in range(len(dataset.testreviews)):
-            if len(dataset.testreviews[i]) < maxlen:
-                diff = maxlen - len(dataset.testreviews[i])
-                dataset.testreviews[i].extend([dataset.ohnum]*diff)
-    if whichones[2]:    
-        for i in range(len(dataset.validreviews)):
-            if len(dataset.validreviews[i]) < maxlen:
-                diff = maxlen - len(dataset.validreviews[i])
-                dataset.validreviews[i].extend([dataset.ohnum]*diff)
-    
-    if printstuff: print(showstringlenghts(dataset,percentage,True))    
-    dataset.lookup["<END>"] = dataset.ohnum
-    dataset.uplook[dataset.ohnum] = "<END>"
-    if hasattr(dataset, 'wordvecs'): #falls man es NACH word2vec ausführt
-        dataset.wordvecs = np.append(dataset.wordvecs,np.transpose(np.transpose([[0]*config.embedding_size])),axis=0)
-    return maxlen
-    
-            
-def showarating(dataset,number):
-    array = [moviedat.uplook[i] for i in dataset.trainreviews[number]]
-    str = ' '.join(array)
-    str = str.replace(" <comma>", ",")
-    str = str.replace(" <colon>", ":")
-    str = str.replace(" <openBracket>", "(")
-    str = str.replace(" <closeBracket>", ")")
-    str = str.replace(" <dot>", ".")
-    str = str.replace(" <dots>", "...")
-    str = str.replace(" <semicolon>", ";")
-    str = str.replace("<quote>", '"')
-    str = str.replace(" <question>", "?")
-    str = str.replace(" <exclamation>", "!")
-    str = str.replace(" <hyphen>  ","-")
-    str = str.replace(" <END>", "")
-    str = str.replace(" <SuperQuestion>", "???")
-    str = str.replace(" <SuperExclamation>", "!!!")
-    print(str)
-        
 
 
 def to_one_hot(y):
@@ -481,13 +492,12 @@ else:
         with open('ratings_ohne_wordvecs.pkl', 'rb') as input:
             moviedat = pickle.load(input)  
         print(moviedat.ohnum," different words.")
+        moviedat.ohnum += 1 #TODO: DAS HIER MUSS RAUS SOBALD DAS DATASET NOCHMAL ERSTELLT WIRD!!
             
     else:
         print("No dataset found! Creating new...")
         moviedat = make_dataset(config.w2v_usesets)
-        
-        print("Shortening to", shortendata(moviedat, [True, True, True], .75, 40, True))
-        
+        #print("Shortening to", moviedat.shortendata([True, True, True], .75, 40, True))
         print(""+str(moviedat.ohnum)+" different words.")
         rand = round(random.uniform(0,len(moviedat.traintargets)))
         print('Sample review', moviedat.trainreviews[rand][0:100], [moviedat.uplook[i] for i in moviedat.trainreviews[rand][0:100]])
@@ -515,36 +525,33 @@ else:
         pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)
     print("Saved word2vec-Results.")
     print("Word2vec ran through ",w2vsamplecount," different reviews.")
-    printcloseones(moviedat, "woman")
-    printcloseones(moviedat, "<dot>")
-    printcloseones(moviedat, "movie")
-    printcloseones(moviedat, "his")
-    printcloseones(moviedat, "bad")
-    printcloseones(moviedat, "three")
-    printcloseones(moviedat, "<END>")
+    moviedat.printcloseones("woman")
+    moviedat.printcloseones("<dot>")
+    moviedat.printcloseones("movie")
+    moviedat.printcloseones("his")
+    moviedat.printcloseones("bad")
+    moviedat.printcloseones("three")
+    moviedat.printcloseones("<END>")
 
-
-#TODO: Muss das mit auffüllenden <end>-tokens gefüllt werden BEVOR das word2vec drauf läuft?
 
 #plot_tsne(moviedat.wordvecs, moviedat)
 
-print("Starting the actual LSTM...")
+print('Data loaded.')
 
-num_steps = shortendata(moviedat, [True, True, True], .75, 40, False) #.75  #das shortendata KANN auch vor dem word2vec sein
-print("Max-Len:",num_steps)
+print("Shortening to", moviedat.shortendata([True, True, True], .75, 40, False))
+#print("Max-Len:",moviedat.maxlenstring)
 X_train = np.asarray(moviedat.trainreviews)
 y_train = to_one_hot(np.asarray(moviedat.traintargets))
-
-
 #X_train = np.concatenate([X_train[:10000], X_train[12501:22501]])  #weg damit
 #y_train = np.concatenate([y_train[:10000], y_train[12501:22501]])
 
 percentage = sum([item[0] for item in y_train])/len([item[0] for item in y_train])*100
-
 print(round(percentage),"% of data is positive")
+
+print("Starting the actual LSTM...")
+
                  
 
-print('Data loaded.')
 #=============================================================================
 #OK. Now lets get to the actual LSTM, but using our pre-trained wordvectors.
 #http://stackoverflow.com/questions/35687678/using-a-pre-trained-word-embedding-word2vec-or-glove-in-tensorflow?rq=1
@@ -564,8 +571,8 @@ def create_batches(data_X, data_Y, batch_size):
 class LSTM(object):
     def __init__(self, is_training):
     
-        self.input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
-        self.target = tf.placeholder(tf.float32, [batch_size, 2]) #2 = n_classes
+        self.input_data = tf.placeholder(tf.int32, [config.batch_size, moviedat.maxlenstring])
+        self.target = tf.placeholder(tf.float32, [config.batch_size, 2]) #2 = n_classes
     
         #non-stateful LSTM   #128 ist hidden_size (=#Vectors???)
         lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(128, forget_bias=0.0, state_is_tuple=True)
@@ -573,7 +580,7 @@ class LSTM(object):
             lstm_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_cell, output_keep_prob=0.5)
             
         cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * 1, state_is_tuple=True)
-        initial_state = cell.zero_state(batch_size, tf.float32)
+        initial_state = cell.zero_state(config.batch_size, tf.float32)
     
         with tf.device("/cpu:0"):
             embedding = tf.get_variable("embedding", [moviedat.ohnum+1, 128], dtype=tf.float32)
@@ -615,12 +622,12 @@ with tf.Graph().as_default(), tf.Session() as session:
         init.run()
         saver = tf.train.Saver()
         
-        for i in range(TRAIN_STEPS):        
+        for i in range(config.TRAIN_STEPS):        
             step = 0
             acc_accuracy = 0
-            for x_batch, y_batch in create_batches(X_train, y_train, batch_size):
+            for x_batch, y_batch in create_batches(X_train, y_train, config.batch_size):
                 
-                #print("Progress: %d%%" % ((round(step/(X_train.shape[0] // batch_size)*100))), end='\r')
+                print("Progress: %d%%" % ((round(step/(X_train.shape[0] // config.batch_size)*100))), end='\r')
                 #sys.stdout.flush()
                 
                 accuracy2, cost2, _ = session.run([model.accuracy, model.cost, model.train_op], feed_dict={model.input_data: x_batch, model.target: y_batch})
