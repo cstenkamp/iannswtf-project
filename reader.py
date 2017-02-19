@@ -5,15 +5,11 @@ Created on Fri Feb 10 12:22:43 2017
 @author: csten_000
 """
 
-#from __future__ import absolute_import
-#from __future__ import division
-#from __future__ import print_function
 
 import pickle
 from pathlib import Path
 import tensorflow as tf
 import random
-import copy
 import numpy as np
 #np.set_printoptions(threshold=np.nan)
 import collections
@@ -22,20 +18,33 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 from scipy.spatial.distance import cosine
 import datetime
 import matplotlib.pyplot as plt
-import sys
 
-NAME = "train"
-num_steps_w2v = 100001
 
 
 class config(object):
+    TRAINNAME = "train"
+    TESTNAME = "test"
+    VALIDATIONNAME = "validation"
+    
+    w2v_usesets = [True, True, True]
     embedding_size = 128
+    num_steps_w2v = 200001 #198000 ist einmal durchs ganze dataset
+    
+    TRAIN_STEPS = 20
+    batch_size = 32
+    
+w2vsamplecount = 0
+
 
 
 class moviedata(object):
-    def __init__(self, reviews, targets, lookup, uplook, count):
-        self.reviews = reviews
-        self.targets = targets
+    def __init__(self, trainx, trainy, testx, testy, validx, validy, lookup, uplook, count):
+        self.trainreviews = trainx
+        self.traintargets = trainy
+        self.testreviews = testx
+        self.testtargets = testy
+        self.validreviews = validx
+        self.validtargets = validy
         self.lookup = lookup
         self.ohnum = count+1  #len(lookup)
         self.uplook = uplook
@@ -47,19 +56,22 @@ class moviedata(object):
 #==============================================================================
 
 ## first we create, save & load the words as indices.
-def make_dataset():
-    HOWMANY = 99999999
+def make_dataset(whichsets = [True, True, True]):
     allwords = {}
-    counter = 1
-    wordcount = 0
+    wordcount = 1
+    datasets = [config.TRAINNAME, config.TESTNAME, config.VALIDATIONNAME]
     
-    with open("sets/"+NAME+".txt", encoding="utf8") as infile:
-        string = []
-        for line in infile: 
-            words = line.split()
-            for word in words:
-                string.append(word)
-                
+    #first we look how often each word occurs, to delete single occurences.
+    for currset in range(3):
+        if whichsets[currset]:
+            with open("sets/"+datasets[currset]+".txt", encoding="utf8") as infile:
+                string = []
+                for line in infile: 
+                    words = line.split()
+                    for word in words:
+                        string.append(word)
+   
+    #now we delete single occurences.
     count = []
     count2 = []
     count.extend(collections.Counter(string).most_common(999999999))
@@ -70,58 +82,64 @@ def make_dataset():
     print("Most common words:")
     print(count[0:5])
 
-    with open("sets/"+NAME+".txt", encoding="utf8") as infile:
-        for line in infile:
-            words = line.split()
-            for word in words:
-                if not word in allwords:
-                    if word in count2: #words that only occur once don't count.
-                        allwords[word] = wordcount
-                        wordcount = wordcount +1
-                    else:
-                        allwords[word] = 0
-            counter = counter + 1
-            if counter > HOWMANY: 
-                break
-        #print(allwords)
     
+    #now we make a dictionary, mapping words to their indices
+    for currset in range(3):
+        if whichsets[currset]:    
+            with open("sets/"+datasets[currset]+".txt", encoding="utf8") as infile:
+                for line in infile:
+                    words = line.split()
+                    for word in words:
+                        if not word in allwords:
+                            if word in count2: #words that only occur once don't count.
+                                allwords[word] = wordcount
+                                wordcount = wordcount +1
+                            else:
+                                allwords[word] = 0
+    #print(allwords)            
     
-    forreverse = copy.deepcopy(allwords)
-    forreverse = { k:v for k, v in forreverse.items() if v > 0 }
-    forreverse["<UNK>"] = 0
-    reverse_dictionary = dict(zip(forreverse.values(), forreverse.keys()))
-    reverse_dictionary[0] = "<UNK>"    
+    #the token for single occurences is "<UNK>"
+    allwords["<UNK>"] = 0
+    reverse_dictionary = dict(zip(allwords.values(), allwords.keys()))
         
-    with open("sets/"+NAME+".txt", encoding="utf8") as infile:        
-        counter = 1
-        ratings = []
-        for line in infile:
-            words = line.split()
-            currentrating = []
-            for word in words:
-                currentrating.append(allwords[word])
-            ratings.append(currentrating)
-            counter = counter + 1
-            if counter > HOWMANY: 
-                break          
-    #print(len(allwords))
-    #return ratings
-    with open("sets/"+NAME+"-target.txt", encoding="utf8") as infile:
-        ratetargets = []
-        for line in infile:
-            if int(line) < 5:
-                ratetargets.append(0)
-            else:
-                ratetargets.append(1)
-    moviedat = moviedata(ratings,ratetargets,allwords,reverse_dictionary,wordcount)
+    #now we make every ratings-string to an array of the respective numbers.
+    ratings = [[],[],[]]
+    for currset in range(3):
+        if whichsets[currset]:        
+            with open("sets/"+datasets[currset]+".txt", encoding="utf8") as infile:        
+                for line in infile:
+                    words = line.split()
+                    currentrating = []
+                    for word in words:
+                        currentrating.append(allwords[word])
+                    ratings[currset].append(currentrating)   
+            
+            
+    #also, we make an array of the ratings
+    ratetargets = [[],[],[]]
+    for currset in range(3):
+        if whichsets[currset]:     
+            with open("sets/"+datasets[currset]+"-target.txt", encoding="utf8") as infile:
+                for line in infile:
+                    if int(line) < 5:
+                        ratetargets[currset].append(0)
+                    else:
+                        ratetargets[currset].append(1)
+        
+    #we made a dataset! :)
+    moviedat = moviedata(ratings[0], ratetargets[0],
+                         ratings[1], ratetargets[1],
+                         ratings[2], ratetargets[2],
+                         allwords, reverse_dictionary, wordcount)
+    
     return moviedat
 
 
 
 
-# Step 3: Function to generate a training batch for the skip-gram model.
+# Function to generate a training batch for the skip-gram model.
 def generate_batch(batch_size, num_skips, skip_window, dataset):
-    global dindex
+    global dindex, permutations, currset, w2vsamplecount #dindex = [0,[0,0,0],0]
     assert batch_size % num_skips == 0
     assert num_skips <= 2 * skip_window
     batch = np.ndarray(shape=(batch_size), dtype=np.int32)
@@ -129,13 +147,27 @@ def generate_batch(batch_size, num_skips, skip_window, dataset):
     span = 2 * skip_window + 1  # [ skip_window target skip_window ]
     buffer = collections.deque(maxlen=span)
     for _ in range(span):
-      global permutation
-      buffer.append(dataset.reviews[permutation[(dindex[0] % len(permutation))]][dindex[1]])
-      dindex[1] = dindex[1] + 1
-      if dindex[1] >= len(dataset.reviews[permutation[(dindex[0] % len(permutation))]]):
-          dindex[1] = 0
-          dindex[0] = dindex[0] + 1
-          permutation = np.random.permutation(len(dataset.targets))      
+        
+      if currset[dindex[0]] == 0:   #wir haben ne zufällige reihenfolge, laut welcher aus train, test oder valid gezogen wird...
+          temp = moviedat.trainreviews[dindex[1][currset[dindex[0]]]]
+      elif currset[dindex[0]] == 1: #(allerdings 0 mal für set x falls set x nicht drankommen soll...)
+          temp = moviedat.testreviews[dindex[1][currset[dindex[0]]]]
+      elif currset[dindex[0]] == 2: #und innerhalb der 3 sets gibt es einen eigen fortlaufenden permutationsindex, sodass jedes element 1 mal dran kommt.
+          temp = moviedat.validreviews[dindex[1][currset[dindex[0]]]]
+      buffer.append(temp[dindex[2]])
+      dindex[2] += 1
+      if dindex[2] >= len(temp): #wenn der aktuelle review mit nummer x aus set y ende ist...
+          dindex[2] = 0
+          dindex[1][currset[dindex[0]]] += 1
+          dindex[0] += 1 #gehe zum nächstem review, das auch in einen anderem set sein kann
+          w2vsamplecount += 1
+          if dindex[0] >= len(currset): #wenn du alle 3 sets durch hast..
+              lens = [len(moviedat.traintargets) if config.w2v_usesets[0] else 0, len(moviedat.testtargets) if config.w2v_usesets[1] else 0, len(moviedat.validtargets) if config.w2v_usesets[2] else 0]
+              currset = np.random.permutation([0]*lens[0]+[1]*lens[1]+[2]*lens[2])
+              permutations = [np.random.permutation(i) for i in lens]
+              dindex = [0,[0,0,0],0] #...wird alles resettet.
+              print("Once more through the entire dataset")
+              
     for i in range(batch_size // num_skips):
       target = skip_window  # target label at the center of the buffer
       targets_to_avoid = [skip_window]
@@ -145,12 +177,27 @@ def generate_batch(batch_size, num_skips, skip_window, dataset):
         targets_to_avoid.append(target)
         batch[i * num_skips + j] = buffer[skip_window]
         labels[i * num_skips + j, 0] = buffer[target]
-      buffer.append(dataset.reviews[permutation[(dindex[0] % len(permutation))]][dindex[1]])
-      dindex[1] = dindex[1] + 1
-      if dindex[1] >= len(dataset.reviews[permutation[(dindex[0] % len(permutation))]]):
-          dindex[1] = 0
-          dindex[0] = dindex[0] + 1
-          permutation = np.random.permutation(len(dataset.targets))      
+
+      if currset[dindex[0]] == 0:   #wir haben ne zufällige reihenfolge, laut welcher aus train, test oder valid gezogen wird...
+          temp = moviedat.trainreviews[dindex[1][currset[dindex[0]]]]
+      elif currset[dindex[0]] == 1: #(allerdings 0 mal für set x falls set x nicht drankommen soll...)
+          temp = moviedat.testreviews[dindex[1][currset[dindex[0]]]]
+      elif currset[dindex[0]] == 2: #und innerhalb der 3 sets gibt es einen eigen fortlaufenden permutationsindex, sodass jedes element 1 mal dran kommt.
+          temp = moviedat.validreviews[dindex[1][currset[dindex[0]]]]
+      buffer.append(temp[dindex[2]])
+      dindex[2] += 1
+      if dindex[2] >= len(temp): #wenn der aktuelle review mit nummer x aus set y ende ist...
+          dindex[2] = 0
+          dindex[1][currset[dindex[0]]] += 1
+          dindex[0] += 1 #gehe zum nächstem review, das auch in einen anderem set sein kann
+          w2vsamplecount += 1
+          if dindex[0] >= len(currset): #wenn du alle 3 sets durch hast..
+              lens = [len(moviedat.traintargets) if config.w2v_usesets[0] else 0, len(moviedat.testtargets) if config.w2v_usesets[1] else 0, len(moviedat.validtargets) if config.w2v_usesets[2] else 0]
+              currset = np.random.permutation([0]*lens[0]+[1]*lens[1]+[2]*lens[2])
+              permutations = [np.random.permutation(i) for i in lens]
+              dindex = [0,[0,0,0],0] #...wird alles resettet.
+              print("Once more through the entire dataset")
+                    
     return batch, labels
 
 
@@ -213,13 +260,12 @@ def perform_word2vec(dataset):
     
     
     # Step 5: Begin training.
-    global num_steps_w2v
     with tf.Session(graph=graph) as session:
       # We must initialize all variables before we use them.
       init.run()
       print("Initialized")    
       average_loss = 0
-      for step in xrange(num_steps_w2v):
+      for step in xrange(config.num_steps_w2v):
         batch_inputs, batch_labels = generate_batch(
             batch_size, num_skips, skip_window, dataset=dataset)
         feed_dict = {train_inputs: batch_inputs, train_labels: batch_labels}
@@ -237,7 +283,7 @@ def perform_word2vec(dataset):
           average_loss = 0
     
         # Note that this is expensive (~20% slowdown if computed every 500 steps)
-        if step % 10000 == 0:
+        if step % 20000 == 0:
           sim = similarity.eval()
           for i in xrange(valid_size):
             valid_word = dataset.uplook[valid_examples[i]]
@@ -297,53 +343,100 @@ def closeones(dataset, indices):
 def printcloseones(dataset, word):
     print("Close to '",word.replace(" ",""),"': ",closeones(dataset,[dataset.lookup[word]]))
 
-    
-def showstringlenghts(dataset,percentage,printstuff):
+  
+def showstringlenghts(dataset, whichones, percentage, printstuff):
     lens = []
-    for i in dataset.reviews:
-        lens.append(len(i))
+    if whichones[0]:
+        for i in dataset.trainreviews:
+            lens.append(len(i))
+    if whichones[1]:
+        for i in dataset.testreviews:
+            lens.append(len(i))
+    if whichones[2]:
+        for i in dataset.validationreviews:
+            lens.append(len(i))
     bins = np.arange(0, 1001, 50)   #bins = np.arange(0, max(lens), 75)
-    if printstuff: plt.xlim([min(lens)-5, 1000+5])  #plt.xlim([min(lens)-5, max(lens)+5])
-    if printstuff: plt.hist(lens, bins=bins, alpha=0.5)
-    if printstuff: plt.title('Lenghts of the strings')
-    if printstuff: plt.show()
+    if printstuff: 
+        plt.xlim([min(lens)-5, 1000+5])  #plt.xlim([min(lens)-5, max(lens)+5])
+        plt.hist(lens, bins=bins, alpha=0.5)
+        plt.title('Lenghts of the strings')
+        plt.show()
     lens.sort()
     return lens[(round(len(lens)*percentage))-1]
 
 
-def shortendata(dataset, percentage, lohnenderstring, printstuff):
-    if printstuff: print("Shortening the Strings...")
-    maxlen = showstringlenghts(dataset,percentage,printstuff) #75% of data has a maxlength of 312, soo...
-    if printstuff: print(maxlen)                          
-    if printstuff: print(len(dataset.reviews))
-    i = 0
-    while True:
-        if len(dataset.reviews[i]) > maxlen:
-            if len(dataset.reviews[i][maxlen+1:]) > lohnenderstring:
-                dataset.reviews.append(dataset.reviews[i][maxlen+1:])
-                dataset.targets.append(dataset.targets[i])
-            dataset.reviews[i] = dataset.reviews[i][:maxlen]
-        i = i+1
-        if i >= len(dataset.reviews):
-            break
-    if printstuff: print("to.....")  
-    if printstuff: print(showstringlenghts(dataset,percentage,True))
-    if printstuff: print(len(dataset.reviews)) 
-    if printstuff: print("to.....")
-    for i in range(len(dataset.reviews)):
-        if len(dataset.reviews[i]) < maxlen:
-            diff = maxlen - len(dataset.reviews[i])
-            dataset.reviews[i].extend([-1]*diff)
+def shortendata(dataset, whichones, percentage, lohnenderstring, printstuff):
+    maxlen = showstringlenghts(dataset,whichones,percentage,printstuff) #75% of data has a maxlength of 312, soo...
+    if printstuff: 
+        print("Shortening the Strings...")
+        print("Max.length: ",maxlen)             
+        print("Amount: ", len(dataset.trainreviews) if whichones[0] else 0 + len(dataset.testreviews) if whichones[1] else 0  + len(dataset.validreviews)  if whichones[2] else 0)
+        
+    if whichones[0]:     
+        i = 0
+        while True:
+            if len(dataset.trainreviews[i]) > maxlen:
+                if len(dataset.trainreviews[i][maxlen+1:]) > lohnenderstring:
+                    dataset.trainreviews.append(dataset.trainreviews[i][maxlen+1:])
+                    dataset.traintargets.append(dataset.traintargets[i])
+                dataset.trainreviews[i] = dataset.trainreviews[i][:maxlen]
+            i = i+1
+            if i >= len(dataset.trainreviews):
+                break
+    if whichones[1]:     
+        i = 0
+        while True:
+            if len(dataset.testreviews[i]) > maxlen:
+                if len(dataset.testreviews[i][maxlen+1:]) > lohnenderstring:
+                    dataset.testreviews.append(dataset.testreviews[i][maxlen+1:])
+                    dataset.testtargets.append(dataset.testtargets[i])
+                dataset.testreviews[i] = dataset.testreviews[i][:maxlen]
+            i = i+1
+            if i >= len(dataset.testreviews):
+                break  
+    if whichones[2]:     
+        i = 0
+        while True:
+            if len(dataset.validreviews[i]) > maxlen:
+                if len(dataset.validreviews[i][maxlen+1:]) > lohnenderstring:
+                    dataset.validreviews.append(dataset.validreviews[i][maxlen+1:])
+                    dataset.validtargets.append(dataset.validtargets[i])
+                dataset.validreviews[i] = dataset.validreviews[i][:maxlen]
+            i = i+1
+            if i >= len(dataset.validreviews):
+                break
+    if printstuff: 
+        print("to.....")  
+        print(showstringlenghts(dataset,whichones,percentage,True))
+        print("Amount: ", len(dataset.trainreviews) if whichones[0] else 0 + len(dataset.testreviews) if whichones[1] else 0  + len(dataset.validreviews)  if whichones[2] else 0)
+        print("to.....")
+    
+    if whichones[0]:    
+        for i in range(len(dataset.trainreviews)):
+            if len(dataset.trainreviews[i]) < maxlen:
+                diff = maxlen - len(dataset.trainreviews[i])
+                dataset.trainreviews[i].extend([dataset.ohnum]*diff)
+    if whichones[1]:    
+        for i in range(len(dataset.testreviews)):
+            if len(dataset.testreviews[i]) < maxlen:
+                diff = maxlen - len(dataset.testreviews[i])
+                dataset.testreviews[i].extend([dataset.ohnum]*diff)
+    if whichones[2]:    
+        for i in range(len(dataset.validreviews)):
+            if len(dataset.validreviews[i]) < maxlen:
+                diff = maxlen - len(dataset.validreviews[i])
+                dataset.validreviews[i].extend([dataset.ohnum]*diff)
+    
     if printstuff: print(showstringlenghts(dataset,percentage,True))    
-    dataset.lookup["<END>"] = -1
-    dataset.uplook[-1] = "<END>"
-    dataset.wordvecs = np.append(dataset.wordvecs,np.transpose(np.transpose([[0]*len(dataset.wordvecs[1])])),axis=0)
-    #letzteres geht, da eine [-1] als index den letzten vektor addressiert
+    dataset.lookup["<END>"] = dataset.ohnum
+    dataset.uplook[dataset.ohnum] = "<END>"
+    if hasattr(dataset, 'wordvecs'): #falls man es NACH word2vec ausführt
+        dataset.wordvecs = np.append(dataset.wordvecs,np.transpose(np.transpose([[0]*config.embedding_size])),axis=0)
     return maxlen
     
             
 def showarating(dataset,number):
-    array = [moviedat.uplook[i] for i in dataset.reviews[number]]
+    array = [moviedat.uplook[i] for i in dataset.trainreviews[number]]
     str = ' '.join(array)
     str = str.replace(" <comma>", ",")
     str = str.replace(" <colon>", ":")
@@ -354,10 +447,11 @@ def showarating(dataset,number):
     str = str.replace(" <semicolon>", ";")
     str = str.replace("<quote>", '"')
     str = str.replace(" <question>", "?")
-    str = str.replace(" <exclamation>", "?")
+    str = str.replace(" <exclamation>", "!")
     str = str.replace(" <hyphen>  ","-")
     str = str.replace(" <END>", "")
     str = str.replace(" <SuperQuestion>", "???")
+    str = str.replace(" <SuperExclamation>", "!!!")
     print(str)
         
 
@@ -376,28 +470,40 @@ def to_one_hot(y):
 print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
 print('Loading data...')
 
-if Path("./"+NAME+"ratings_mit_wordvecs.pkl").is_file():
-    with open(NAME+'ratings_mit_wordvecs.pkl', 'rb') as input:
+if Path("./ratings_mit_wordvecs.pkl").is_file():
+    print("Dataset including word2vec found!")
+    with open('ratings_mit_wordvecs.pkl', 'rb') as input:
         moviedat = pickle.load(input)       
 
 else:
-    if Path("./"+NAME+"ratings_ohne_wordvecs.pkl").is_file():
-        with open(NAME+'ratings_ohne_wordvecs.pkl', 'rb') as input:
+    if Path("./ratings_ohne_wordvecs.pkl").is_file():
+        print("dataset without word2vec found.")
+        with open('ratings_ohne_wordvecs.pkl', 'rb') as input:
             moviedat = pickle.load(input)  
+        print(moviedat.ohnum," different words.")
             
     else:
-        moviedat = make_dataset()
-        print(""+str(moviedat.ohnum)+" different words.")
-        rand = round(random.uniform(0,len(moviedat.targets)))
-        print('Sample review', moviedat.reviews[rand][0:100], [moviedat.uplook[i] for i in moviedat.reviews[rand][0:100]])
+        print("No dataset found! Creating new...")
+        moviedat = make_dataset(config.w2v_usesets)
         
-        with open(NAME+'ratings_ohne_wordvecs.pkl', 'wb') as output:
+        print("Shortening to", shortendata(moviedat, [True, True, True], .75, 40, True))
+        
+        print(""+str(moviedat.ohnum)+" different words.")
+        rand = round(random.uniform(0,len(moviedat.traintargets)))
+        print('Sample review', moviedat.trainreviews[rand][0:100], [moviedat.uplook[i] for i in moviedat.trainreviews[rand][0:100]])
+        
+        with open('ratings_ohne_wordvecs.pkl', 'wb') as output:
             pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)
+            print('Saved the dataset as Pickle-File')
        
     ## let's get to word2vec (https://www.tensorflow.org/tutorials/word2vec/)
     #TODO: CBOW statt skip-gram, da wir nen kleines dataset haben!
-    permutation = np.random.permutation(len(moviedat.targets))
-    dindex = [0,0]
+    print("Starting word2vec...")
+    
+    lens = [len(moviedat.traintargets) if config.w2v_usesets[0] else 0, len(moviedat.testtargets) if config.w2v_usesets[1] else 0, len(moviedat.validtargets) if config.w2v_usesets[2] else 0]
+    currset = np.random.permutation([0]*lens[0]+[1]*lens[1]+[2]*lens[2])
+    permutations = [np.random.permutation(i) for i in lens]
+    dindex = [0,[0,0,0],0]  #dindex is: whichset, permuations[currset[dindex[0]]], index of that review
     batch, labels = generate_batch(batch_size=8, num_skips=2, skip_window=1, dataset=moviedat)
     for i in range(8):
       print(batch[i], moviedat.uplook[batch[i]], '->', labels[i, 0], moviedat.uplook[labels[i, 0]])
@@ -405,31 +511,33 @@ else:
 
     final_embeddings = perform_word2vec(moviedat)
     moviedat.add_wordvectors(final_embeddings)
-    with open(NAME+'ratings_mit_wordvecs.pkl', 'wb') as output:
-        pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)  
+    with open('ratings_mit_wordvecs.pkl', 'wb') as output:
+        pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)
+    print("Saved word2vec-Results.")
+    print("Word2vec ran through ",w2vsamplecount," different reviews.")
+    printcloseones(moviedat, "woman")
+    printcloseones(moviedat, "<dot>")
+    printcloseones(moviedat, "movie")
+    printcloseones(moviedat, "his")
+    printcloseones(moviedat, "bad")
+    printcloseones(moviedat, "three")
+    printcloseones(moviedat, "<END>")
 
 
-#TODO: Word2vec auf training+testing dataset laufen lassen
 #TODO: Muss das mit auffüllenden <end>-tokens gefüllt werden BEVOR das word2vec drauf läuft?
 
-#plot_tsne(final_embeddings, moviedat)
-#printcloseones(moviedat, "woman")
-#printcloseones(moviedat, "<dot>")
-#printcloseones(moviedat, "movie")
-#printcloseones(moviedat, "his")
-#printcloseones(moviedat, "bad")
-#printcloseones(moviedat, "three")
+#plot_tsne(moviedat.wordvecs, moviedat)
 
-num_steps = shortendata(moviedat,.1,30, False) #.75
+print("Starting the actual LSTM...")
+
+num_steps = shortendata(moviedat, [True, True, True], .75, 40, False) #.75  #das shortendata KANN auch vor dem word2vec sein
 print("Max-Len:",num_steps)
-
-X_train = np.asarray(moviedat.reviews)
-X_train[X_train < 0] = moviedat.ohnum
-y_train = to_one_hot(np.asarray(moviedat.targets))
+X_train = np.asarray(moviedat.trainreviews)
+y_train = to_one_hot(np.asarray(moviedat.traintargets))
 
 
-X_train = np.concatenate([X_train[:10000], X_train[12501:22501]])  #weg damit
-y_train = np.concatenate([y_train[:10000], y_train[12501:22501]])
+#X_train = np.concatenate([X_train[:10000], X_train[12501:22501]])  #weg damit
+#y_train = np.concatenate([y_train[:10000], y_train[12501:22501]])
 
 percentage = sum([item[0] for item in y_train])/len([item[0] for item in y_train])*100
 
@@ -453,48 +561,29 @@ def create_batches(data_X, data_Y, batch_size):
         yield x_batch, y_batch
 
 
-
-
-
-with tf.Graph().as_default(), tf.Session() as session:
-    initializer = tf.random_uniform_initializer(-0.1,0.1)
+class LSTM(object):
+    def __init__(self, is_training):
     
-    with tf.variable_scope("model", reuse=None, initializer=initializer):
-        is_training = True
-        batch_size = 32
+        self.input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
+        self.target = tf.placeholder(tf.float32, [batch_size, 2]) #2 = n_classes
     
-        input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
-        target = tf.placeholder(tf.float32, [batch_size, 2]) #2 = n_classes
-    
-        #non-stateful LSTM
-        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(config.embedding_size, forget_bias=0.0, state_is_tuple=True)
-        #128 ist hidden_size (=#Vectors???)
-        
+        #non-stateful LSTM   #128 ist hidden_size (=#Vectors???)
+        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(128, forget_bias=0.0, state_is_tuple=True)
         if is_training:
             lstm_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_cell, output_keep_prob=0.5)
             
-        #what are you?? leave out?? (für multiple layers)
         cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * 1, state_is_tuple=True)
-    
         initial_state = cell.zero_state(batch_size, tf.float32)
     
-        
         with tf.device("/cpu:0"):
             embedding = tf.get_variable("embedding", [moviedat.ohnum+1, 128], dtype=tf.float32)
-            inputs = tf.nn.embedding_lookup(embedding, input_data)
-            
+            inputs = tf.nn.embedding_lookup(embedding, self.input_data, name="embeddings")
 #        embedding = tf.Variable(moviedat.wordvecs, name="inputs", dtype=tf.float32)
 #        inputs = tf.nn.embedding_lookup(embedding, input_data)    
-    
         if is_training:
             inputs = tf.nn.dropout(inputs, 0.5)
     
-        #DIES IST DAS ORIGINAL
         output, state = tf.nn.dynamic_rnn(cell, inputs, initial_state=initial_state)
-    
-        #DIES IST VON LUKAS
-        #output, state = tf.nn.rnn(lstm_cell, inputs, initial_state = initial_state)
-    
         output = tf.transpose(output, [1, 0, 2])
         last = tf.gather(output, int(output.get_shape()[0]) - 1)
         
@@ -502,56 +591,53 @@ with tf.Graph().as_default(), tf.Session() as session:
         softmax_b = tf.get_variable("softmax_b", [2], dtype=tf.float32)
         logits = tf.matmul(last, softmax_w) + softmax_b
         
-        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, target))
-        final_state = state
-    
-        correct_pred = tf.equal(tf.argmax(target, 1), tf.argmax(logits, 1))
+        self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, self.target))
+        correct_pred = tf.equal(tf.argmax(self.target, 1), tf.argmax(logits, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+        self.accuracy = accuracy
         
         if is_training:
             tvars = tf.trainable_variables()
-            grads, _ = tf.clip_by_global_norm(tf.gradients(cost, tvars), 5)
-            train_op = tf.train.AdamOptimizer().minimize(cost)
-               
+            grads, _ = tf.clip_by_global_norm(tf.gradients(self.cost, tvars), 5)
+            self.train_op = tf.train.AdamOptimizer().minimize(self.cost)
         
             
-    init = tf.global_variables_initializer()
-    init.run()
 
-    for i in range(6):
-        
-        step = 0
-        acc_accuracy = 0
-        for x_batch, y_batch in create_batches(X_train, y_train, batch_size):
-            
-            #print("Progress: %d%%" % ((round(step/(X_train.shape[0] // batch_size)*100))), end='\r')
-            #sys.stdout.flush()
-            
-            accuracy2, cost2, _ = session.run([accuracy,cost, train_op], feed_dict={input_data: x_batch, target: y_batch})
-            step += 1
-            acc_accuracy += accuracy2
-            
-        train_accuracy = acc_accuracy / step
-        
-        print("Epoch: %d \t Train Accuracy: %.3f" % (i + 1, train_accuracy))          
 
+
+with tf.Graph().as_default(), tf.Session() as session:
+    initializer = tf.random_uniform_initializer(-0.1, 0.1)
+    
+    with tf.variable_scope("model", reuse=None, initializer=initializer):
+        model = LSTM(is_training=True)
+
+        init = tf.global_variables_initializer()
+        init.run()
         saver = tf.train.Saver()
-        saver.save(session, "./movierateweights.ckpt")
+        
+        for i in range(TRAIN_STEPS):        
+            step = 0
+            acc_accuracy = 0
+            for x_batch, y_batch in create_batches(X_train, y_train, batch_size):
+                
+                #print("Progress: %d%%" % ((round(step/(X_train.shape[0] // batch_size)*100))), end='\r')
+                #sys.stdout.flush()
+                
+                accuracy2, cost2, _ = session.run([model.accuracy, model.cost, model.train_op], feed_dict={model.input_data: x_batch, model.target: y_batch})
+                step += 1
+                acc_accuracy += accuracy2
+                
+            train_accuracy = acc_accuracy / step
+            
+            print("Epoch: %d \t Train Accuracy: %.3f" % (i + 1, train_accuracy))          
+    
+            saver.save(session, "./movierateweights.ckpt")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            
+#    with tf.variable_scope("model", reuse=True, initializer=initializer):
+#        testmodel = LSTM(is_training=False)
+        
+        
 
 
 
