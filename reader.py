@@ -33,7 +33,7 @@ class config(object):
     embedding_size = 128
     num_steps_w2v = 200001 #198000 ist einmal durchs ganze dataset (falls nach word2vec gekürzt)
     
-    TRAIN_STEPS = 20
+    TRAIN_STEPS = 1
     batch_size = 32
     
 
@@ -617,10 +617,10 @@ with tf.Graph().as_default(), tf.Session() as session:
     
     with tf.variable_scope("model", reuse=None, initializer=initializer):
         model = LSTM(is_training=True)
-
+        
+        saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
         init = tf.global_variables_initializer()
         init.run()
-        saver = tf.train.Saver()
         
         for i in range(config.TRAIN_STEPS):        
             step = 0
@@ -639,11 +639,25 @@ with tf.Graph().as_default(), tf.Session() as session:
             print("Epoch: %d \t Train Accuracy: %.3f" % (i + 1, train_accuracy))          
     
             saver.save(session, "./movierateweights.ckpt")
-
             
 #    with tf.variable_scope("model", reuse=True, initializer=initializer):
 #        testmodel = LSTM(is_training=False)
+            
+#    with tf.variable_scope("model", reuse=None):
+#        testmodel = LSTM(is_training=False)
+#        
+#        saver = tf.train.Saver()
+#        
+#        ckpt = tf.train.get_checkpoint_state("./")
+#        if ckpt and ckpt.model_checkpoint_path:
+#            print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+#            saver.restore(session, ckpt.model_checkpoint_path)
+#        else:
+#            print("Created model with fresh parameters.")
+#            session.run(tf.initialize_all_variables())
         
+        
+
         
 
 
