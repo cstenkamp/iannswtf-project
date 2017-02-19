@@ -33,7 +33,7 @@ class config(object):
     embedding_size = 128
     num_steps_w2v = 200001 #198000 ist einmal durchs ganze dataset (falls nach word2vec gekürzt)
     
-    TRAIN_STEPS = 1
+    TRAIN_STEPS = 8
     batch_size = 32
     
 
@@ -545,8 +545,13 @@ y_train = to_one_hot(np.asarray(moviedat.traintargets))
 #X_train = np.concatenate([X_train[:10000], X_train[12501:22501]])  #weg damit
 #y_train = np.concatenate([y_train[:10000], y_train[12501:22501]])
 
+X_test = np.asarray(moviedat.testreviews)
+y_test = to_one_hot(np.asarray(moviedat.testtargets))
+X_validat = np.asarray(moviedat.validreviews)
+y_validat = to_one_hot(np.asarray(moviedat.validtargets))
+
 percentage = sum([item[0] for item in y_train])/len([item[0] for item in y_train])*100
-print(round(percentage),"% of data is positive")
+print(round(percentage),"% of training-data is positive")
 
 print("Starting the actual LSTM...")
 
@@ -575,11 +580,11 @@ class LSTM(object):
         self.target = tf.placeholder(tf.float32, [config.batch_size, 2]) #2 = n_classes
     
         #non-stateful LSTM   #128 ist hidden_size (=#Vectors???)
-        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(128, forget_bias=0.0, state_is_tuple=True)
+        lstm_cell = tf.contrib.rnn.BasicLSTMCell(128, forget_bias=0.0, state_is_tuple=True)
         if is_training:
-            lstm_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_cell, output_keep_prob=0.5)
+            lstm_cell = tf.contrib.rnn.DropoutWrapper(lstm_cell, output_keep_prob=0.5)
             
-        cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * 1, state_is_tuple=True)
+        cell = tf.contrib.rnn.MultiRNNCell([lstm_cell] * 1, state_is_tuple=True)
         initial_state = cell.zero_state(config.batch_size, tf.float32)
     
         with tf.device("/cpu:0"):
@@ -598,7 +603,7 @@ class LSTM(object):
         softmax_b = tf.get_variable("softmax_b", [2], dtype=tf.float32)
         logits = tf.matmul(last, softmax_w) + softmax_b
         
-        self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, self.target))
+        self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=self.target))
         correct_pred = tf.equal(tf.argmax(self.target, 1), tf.argmax(logits, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
         self.accuracy = accuracy
@@ -614,21 +619,28 @@ class LSTM(object):
 
 with tf.Graph().as_default(), tf.Session() as session:
     initializer = tf.random_uniform_initializer(-0.1, 0.1)
-    
+
+
     with tf.variable_scope("model", reuse=None, initializer=initializer):
         model = LSTM(is_training=True)
-        
+
         saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
-        init = tf.global_variables_initializer()
-        init.run()
-        
-        for i in range(config.TRAIN_STEPS):        
+       
+        ckpt = tf.train.get_checkpoint_state("./")
+        if ckpt and ckpt.model_checkpoint_path:
+            print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+            saver.restore(session, ckpt.model_checkpoint_path)
+        else:
+            print("Created model with fresh parameters.")
+            init = tf.global_variables_initializer()
+            init.run()
+
+        for i in range(config.TRAIN_STEPS): #TODO: finde ich irgendwie raus wie viele steps im wiederhergestellten schon gemacht worden sind??
             step = 0
             acc_accuracy = 0
             for x_batch, y_batch in create_batches(X_train, y_train, config.batch_size):
                 
                 print("Progress: %d%%" % ((round(step/(X_train.shape[0] // config.batch_size)*100))), end='\r')
-                #sys.stdout.flush()
                 
                 accuracy2, cost2, _ = session.run([model.accuracy, model.cost, model.train_op], feed_dict={model.input_data: x_batch, model.target: y_batch})
                 step += 1
@@ -646,7 +658,7 @@ with tf.Graph().as_default(), tf.Session() as session:
 #    with tf.variable_scope("model", reuse=None):
 #        testmodel = LSTM(is_training=False)
 #        
-#        saver = tf.train.Saver()
+#        saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
 #        
 #        ckpt = tf.train.get_checkpoint_state("./")
 #        if ckpt and ckpt.model_checkpoint_path:
@@ -654,12 +666,26 @@ with tf.Graph().as_default(), tf.Session() as session:
 #            saver.restore(session, ckpt.model_checkpoint_path)
 #        else:
 #            print("Created model with fresh parameters.")
-#            session.run(tf.initialize_all_variables())
-        
-        
-
-        
-
+#            init = tf.global_variables_initializer()
+#            init.run()
+#        
+#        step = 0
+#        acc_accuracy = 0
+#        for x_batch, y_batch in create_batches(X_test, y_test, config.batch_size):
+#            
+#            print("Progress: %d%%" % ((round(step/(X_test.shape[0] // config.batch_size)*100))), end='\r')
+#            
+#            accuracy2, cost2 = session.run([testmodel.accuracy, testmodel.cost], feed_dict={testmodel.input_data: x_batch, testmodel.target: y_batch})
+#            step += 1
+#            acc_accuracy += accuracy2
+#            
+#        train_accuracy = acc_accuracy / step
+#        
+#        print("Epoch: %d \t Train Accuracy: %.3f" % (i + 1, train_accuracy))          
+#
+#        saver.save(session, "./movierateweights.ckpt")        
+#        
+#
 
 
 
