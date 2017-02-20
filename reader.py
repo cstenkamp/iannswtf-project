@@ -18,8 +18,7 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 from scipy.spatial.distance import cosine
 import datetime
 import matplotlib.pyplot as plt
-
-
+import time
 
 w2vsamplecount = 0
 
@@ -33,7 +32,8 @@ class config(object):
     embedding_size = 128
     num_steps_w2v = 200001 #198000 ist einmal durchs ganze dataset (falls nach word2vec gekürzt)
     
-    TRAIN_STEPS = 8
+    use_w2v = True
+    TRAIN_STEPS = 6
     batch_size = 32
     
 
@@ -187,6 +187,7 @@ class moviedata(object):
         
 #==============================================================================
 
+            
 ## first we create, save & load the words as indices.
 def make_dataset(whichsets = [True, True, True]):
     allwords = {}
@@ -477,6 +478,37 @@ def to_one_hot(y):
     return np.array([np.array(row) for row in y_one_hot])
 
 #==============================================================================
+def read_iteration():
+    try:
+        with open("checkpoint", encoding="utf8") as infile:
+            for line in infile:
+                line = line.replace("\n","")
+                if line[:11] == "#Iteration:":
+                     iterations = int(line[line.find('"'):][1:-1])
+                     return iterations
+            return 0
+    except FileNotFoundError:
+        return 0
+
+def increase_iteration():
+    write_iteration(read_iteration()+1)
+    
+def write_iteration(number):
+    try:
+        lines = []
+        with open("checkpoint", encoding="utf8") as infile:
+            for line in infile:
+                line = line.replace("\n","")
+                if not line[:11] == "#Iteration:":
+                    lines.append(line)
+            lines.append('#Iteration: "'+str(number)+'"')
+    except FileNotFoundError:
+        lines.append('#Iteration: "'+str(number)+'"')
+    infile = open("checkpoint", "w")
+    infile.write("\n".join(lines));        
+    infile.close()            
+#==============================================================================
+
 
 print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
 print('Loading data...')
@@ -587,11 +619,14 @@ class LSTM(object):
         cell = tf.contrib.rnn.MultiRNNCell([lstm_cell] * 1, state_is_tuple=True)
         initial_state = cell.zero_state(config.batch_size, tf.float32)
     
-        with tf.device("/cpu:0"):
-            embedding = tf.get_variable("embedding", [moviedat.ohnum+1, 128], dtype=tf.float32)
-            inputs = tf.nn.embedding_lookup(embedding, self.input_data, name="embeddings")
-#        embedding = tf.Variable(moviedat.wordvecs, name="inputs", dtype=tf.float32)
-#        inputs = tf.nn.embedding_lookup(embedding, input_data)    
+        if config.use_w2v:
+            embedding = tf.Variable(moviedat.wordvecs, name="inputs", dtype=tf.float32)
+            inputs = tf.nn.embedding_lookup(embedding, self.input_data)    
+        else:            
+            with tf.device("/cpu:0"):
+                embedding = tf.get_variable("embedding", [moviedat.ohnum+1, 128], dtype=tf.float32)
+                inputs = tf.nn.embedding_lookup(embedding, self.input_data, name="embeddings")
+
         if is_training:
             inputs = tf.nn.dropout(inputs, 0.5)
     
@@ -614,82 +649,92 @@ class LSTM(object):
             self.train_op = tf.train.AdamOptimizer().minimize(self.cost)
         
             
-
-
-
-with tf.Graph().as_default(), tf.Session() as session:
-    initializer = tf.random_uniform_initializer(-0.1, 0.1)
-
-
-    with tf.variable_scope("model", reuse=None, initializer=initializer):
-        model = LSTM(is_training=True)
-
-        saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
-       
-        ckpt = tf.train.get_checkpoint_state("./")
-        if ckpt and ckpt.model_checkpoint_path:
-            print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-            saver.restore(session, ckpt.model_checkpoint_path)
-        else:
-            print("Created model with fresh parameters.")
-            init = tf.global_variables_initializer()
-            init.run()
-
-        for i in range(config.TRAIN_STEPS): #TODO: finde ich irgendwie raus wie viele steps im wiederhergestellten schon gemacht worden sind??
-            step = 0
-            acc_accuracy = 0
-            for x_batch, y_batch in create_batches(X_train, y_train, config.batch_size):
-                
-                print("Progress: %d%%" % ((round(step/(X_train.shape[0] // config.batch_size)*100))), end='\r')
-                
-                accuracy2, cost2, _ = session.run([model.accuracy, model.cost, model.train_op], feed_dict={model.input_data: x_batch, model.target: y_batch})
-                step += 1
-                acc_accuracy += accuracy2
-                
-            train_accuracy = acc_accuracy / step
             
-            print("Epoch: %d \t Train Accuracy: %.3f" % (i + 1, train_accuracy))          
+    def run_on(self, session, x_data, y_data, is_training, saver=None, iteration=0, epoch=0, maxepoch=0):   
+        step = 0
+        acc_accuracy = 0
+        for x_batch, y_batch in create_batches(x_data, y_data, config.batch_size):
+            
+            if is_training:
+                print("Iteration: %d/%d; Progress: %d%%" % ((epoch+1),maxepoch,(round(step/(X_train.shape[0] // config.batch_size)*100))), end='\r')
+                accuracy2, cost2, _ = session.run([self.accuracy, self.cost, self.train_op], feed_dict={self.input_data: x_batch, self.target: y_batch})
+            else:
+                print("Test-Run Progress: %d%%" % ((round(step/(X_test.shape[0] // config.batch_size)*100))), end='\r')
+                accuracy2, cost2 = session.run([self.accuracy, self.cost], feed_dict={self.input_data: x_batch, self.target: y_batch})
+            
+            step += 1
+            acc_accuracy += accuracy2
+            
+        accuracy = acc_accuracy / step
+        
+        if is_training:
+            if config.use_w2v:
+                saver.save(session, "./movierateweights_wordvecs.ckpt")
+            else:
+                saver.save(session, "./movierateweights.ckpt")
+            time.sleep(0.1)
+            write_iteration(iteration+epoch+1)
+        
+        return accuracy
+
+
+def train_and_test(amount_iterations):
+    with tf.Graph().as_default(), tf.Session() as session:
+        initializer = tf.random_uniform_initializer(-0.1, 0.1)
     
-            saver.save(session, "./movierateweights.ckpt")
-            
-#    with tf.variable_scope("model", reuse=True, initializer=initializer):
-#        testmodel = LSTM(is_training=False)
-            
-#    with tf.variable_scope("model", reuse=None):
-#        testmodel = LSTM(is_training=False)
-#        
-#        saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
-#        
-#        ckpt = tf.train.get_checkpoint_state("./")
-#        if ckpt and ckpt.model_checkpoint_path:
-#            print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-#            saver.restore(session, ckpt.model_checkpoint_path)
-#        else:
-#            print("Created model with fresh parameters.")
-#            init = tf.global_variables_initializer()
-#            init.run()
-#        
-#        step = 0
-#        acc_accuracy = 0
-#        for x_batch, y_batch in create_batches(X_test, y_test, config.batch_size):
-#            
-#            print("Progress: %d%%" % ((round(step/(X_test.shape[0] // config.batch_size)*100))), end='\r')
-#            
-#            accuracy2, cost2 = session.run([testmodel.accuracy, testmodel.cost], feed_dict={testmodel.input_data: x_batch, testmodel.target: y_batch})
-#            step += 1
-#            acc_accuracy += accuracy2
-#            
-#        train_accuracy = acc_accuracy / step
-#        
-#        print("Epoch: %d \t Train Accuracy: %.3f" % (i + 1, train_accuracy))          
-#
-#        saver.save(session, "./movierateweights.ckpt")        
-#        
-#
+     #TODO: abfragen ob er lernen, applien oder beides will (oder vie-zeit-modus)
+     #viel-zeit-modus: wo er train und test accuracy live errechnet und direkt plottet und man sich das beste aussuchen kann
+        with tf.variable_scope("model", reuse=None, initializer=initializer):
+            model = LSTM(is_training=True)
+    
+            saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
+           
+            ckpt = tf.train.get_checkpoint_state("./") #TODO: da unterscheidet er noch nicht zwischen mit und ohne w2v..
+            if ckpt and ckpt.model_checkpoint_path:
+                print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+                saver.restore(session, ckpt.model_checkpoint_path)
+                iteration = read_iteration()
+                print(iteration,"iterations ran already.")
+            else:
+                print("Created model with fresh parameters.")
+                init = tf.global_variables_initializer()
+                init.run()
+                iteration = 0
+    
+            training_steps = amount_iterations
+            try:
+                if iteration > 0:
+                    if amount_iterations > iteration:
+                        if not input(str(iteration)+" iterations ran already, "+str(amount_iterations)+" are supposed to run. Do you want an additional "+str(amount_iterations)+"(y), or just the "+str(amount_iterations-iteration)+" to fill up to "+str(amount_iterations)+" (n)? ") in ('y','yes','Y','Yes','YES'):
+                            training_steps = amount_iterations - iteration
+                    else:
+                        if not input("It seems like all the requested "+str(amount_iterations)+" ran already. Do you want another "+str(amount_iterations)+" iterations to run? ") in ('y','yes','Y','Yes','YES'):
+                            training_steps = 0
+            except TypeError:
+                training_steps = amount_iterations - iteration
+                print("Training for another",training_steps,"iterations.")
+                
+            for i in range(training_steps):
+                
+                train_accuracy = model.run_on(session, X_train, y_train, True, saver, iteration, i, training_steps)
+                print("Epoch: %d \t Train Accuracy: %.3f" % (i + 1, train_accuracy))          
+        
+                
+                
+        print("Trying to Apply the model to the test-set...")        
+        with tf.variable_scope("model", reuse=True, initializer=initializer):
+            testmodel = LSTM(is_training=False)
+                
+            test_accuracy = testmodel.run_on(session, X_test, y_test, False)
+            print("Testing Set Accuracy: %.3f" % (test_accuracy))          
+
+
+train_and_test(config.TRAIN_STEPS)
 
 
 
-
+#def test_one_sample(string):
+    
 
 
 
