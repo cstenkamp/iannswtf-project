@@ -4,6 +4,7 @@ Created on Fri Feb 10 12:22:43 2017
 
 @author: csten_000
 """
+#also re-doing this: https://arxiv.org/abs/1408.5882
 
 
 import pickle
@@ -18,7 +19,9 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 from scipy.spatial.distance import cosine
 import datetime
 import matplotlib.pyplot as plt
+import copy
 import time
+from scipy import stats
 
 w2vsamplecount = 0
 
@@ -33,7 +36,7 @@ class config(object):
     num_steps_w2v = 200001 #198000 ist einmal durchs ganze dataset (falls nach word2vec gekürzt)
     
     use_w2v = True
-    TRAIN_STEPS = 6
+    TRAIN_STEPS = 1
     batch_size = 32
     
 
@@ -187,6 +190,26 @@ class moviedata(object):
         
 #==============================================================================
 
+
+def preparestring(string):
+    str = copy.deepcopy(string)
+    str = str.lower()
+    str = str.replace(",", " <comma> ")
+    str = str.replace(":", " <colon> ")
+    str = str.replace("(", " <openBracket> ")
+    str = str.replace(")", " <closeBracket> ")
+    str = str.replace(".", " <dot> ")
+    str = str.replace("...", " <dots> ")
+    str = str.replace(";", " <semicolon> ")
+    str = str.replace('"', " <quote> ")
+    str = str.replace("?", " <question> ")
+    str = str.replace("!", " <exclamation> ")
+    str = str.replace("-", " <hyphen> ")
+    str = str.replace("???", " <SuperQuestion> ")
+    str = str.replace("!!!", " <SuperExclamation> ")
+    while str.find("  ") > 0: str = str.replace("  "," ")
+    if str.endswith(' '): str = str[:-1]
+    return str
             
 ## first we create, save & load the words as indices.
 def make_dataset(whichsets = [True, True, True]):
@@ -563,7 +586,6 @@ else:
     moviedat.printcloseones("his")
     moviedat.printcloseones("bad")
     moviedat.printcloseones("three")
-    moviedat.printcloseones("<END>")
 
 
 #plot_tsne(moviedat.wordvecs, moviedat)
@@ -608,8 +630,8 @@ def create_batches(data_X, data_Y, batch_size):
 class LSTM(object):
     def __init__(self, is_training):
     
-        self.input_data = tf.placeholder(tf.int32, [config.batch_size, moviedat.maxlenstring])
-        self.target = tf.placeholder(tf.float32, [config.batch_size, 2]) #2 = n_classes
+        self.input_data = tf.placeholder(tf.int32, [config.batch_size, moviedat.maxlenstring], name="input_x")
+        self.target = tf.placeholder(tf.float32, [config.batch_size, 2], name="input_t") #2 = n_classes
     
         #non-stateful LSTM   #128 ist hidden_size (=#Vectors???)
         lstm_cell = tf.contrib.rnn.BasicLSTMCell(128, forget_bias=0.0, state_is_tuple=True)
@@ -618,10 +640,17 @@ class LSTM(object):
             
         cell = tf.contrib.rnn.MultiRNNCell([lstm_cell] * 1, state_is_tuple=True)
         initial_state = cell.zero_state(config.batch_size, tf.float32)
-    
+            
         if config.use_w2v:
-            embedding = tf.Variable(moviedat.wordvecs, name="inputs", dtype=tf.float32)
-            inputs = tf.nn.embedding_lookup(embedding, self.input_data)    
+#            embedding = tf.Variable(moviedat.wordvecs, name="embedding", dtype=tf.float32)
+#            inputs = tf.nn.embedding_lookup(embedding, self.input_data)     
+#            W = tf.Variable(tf.constant(0.0, shape=[moviedat.ohnum, config.embedding_size]), trainable=False, name="W")
+#            embedding_placeholder = tf.placeholder(tf.float32, [moviedat.ohnum, config.embedding_size])
+#            embedding_init = W.assign(embedding_placeholder)
+            with tf.device('/cpu:0'), tf.name_scope("embedding"):
+                embedding = tf.Variable(tf.random_uniform([moviedat.ohnum, config.embedding_size], -1.0, 1.0), trainable = False, name="embedding")
+                self.embedding = embedding
+                inputs = tf.nn.embedding_lookup(embedding, self.input_data, name="embeddings")
         else:            
             with tf.device("/cpu:0"):
                 embedding = tf.get_variable("embedding", [moviedat.ohnum+1, 128], dtype=tf.float32)
@@ -629,7 +658,7 @@ class LSTM(object):
 
         if is_training:
             inputs = tf.nn.dropout(inputs, 0.5)
-    
+            
         output, state = tf.nn.dynamic_rnn(cell, inputs, initial_state=initial_state)
         output = tf.transpose(output, [1, 0, 2])
         last = tf.gather(output, int(output.get_shape()[0]) - 1)
@@ -637,6 +666,7 @@ class LSTM(object):
         softmax_w = tf.get_variable("softmax_w", [128, 2], dtype=tf.float32)
         softmax_b = tf.get_variable("softmax_b", [2], dtype=tf.float32)
         logits = tf.matmul(last, softmax_w) + softmax_b
+        self.logits = logits
         
         self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=self.target))
         correct_pred = tf.equal(tf.argmax(self.target, 1), tf.argmax(logits, 1))
@@ -650,7 +680,7 @@ class LSTM(object):
         
             
             
-    def run_on(self, session, x_data, y_data, is_training, saver=None, iteration=0, epoch=0, maxepoch=0):   
+    def run_on(self, session, x_data, y_data, is_training, saver=None, iteration=0, epoch=0, maxepoch=0, SaveALot=False):   
         step = 0
         acc_accuracy = 0
         for x_batch, y_batch in create_batches(x_data, y_data, config.batch_size):
@@ -669,13 +699,29 @@ class LSTM(object):
         
         if is_training:
             if config.use_w2v:
-                saver.save(session, "./movierateweights_wordvecs.ckpt")
+                savename = "./movierateweights_wordvecs.ckpt"
             else:
-                saver.save(session, "./movierateweights.ckpt")
+                savename = "./movierateweights.ckpt"
+                
+            saver.save(session, savename)
+            #TODO: beim SaveALot-Modus sollte er das jetzt re-namen in "_iterationx"
+            
             time.sleep(0.1)
             write_iteration(iteration+epoch+1)
         
         return accuracy
+    
+
+def initialize_uninitialized_vars(session):
+    uninitialized_vars = []
+    for var in tf.global_variables():
+        try:
+            session.run(var)
+        except tf.errors.FailedPreconditionError:
+            uninitialized_vars.append(var)
+    init_new_vars_op = tf.variables_initializer(uninitialized_vars)
+    session.run(init_new_vars_op)
+            
 
 
 def train_and_test(amount_iterations):
@@ -700,7 +746,14 @@ def train_and_test(amount_iterations):
                 init = tf.global_variables_initializer()
                 init.run()
                 iteration = 0
-    
+            
+            if config.use_w2v:
+                session.run(model.embedding.assign(moviedat.wordvecs))
+                print("Using the pre-trained word2vec")
+            else:
+                print("Not using the pre-trained word2vec")
+            
+
             training_steps = amount_iterations
             try:
                 if iteration > 0:
@@ -719,11 +772,17 @@ def train_and_test(amount_iterations):
                 train_accuracy = model.run_on(session, X_train, y_train, True, saver, iteration, i, training_steps)
                 print("Epoch: %d \t Train Accuracy: %.3f" % (i + 1, train_accuracy))          
         
-                
-                
-        print("Trying to Apply the model to the test-set...")        
+            
         with tf.variable_scope("model", reuse=True, initializer=initializer):
+            print("Trying to Apply the model to the test-set...")        
             testmodel = LSTM(is_training=False)
+            
+            if config.use_w2v:
+                session.run(testmodel.embedding.assign(moviedat.wordvecs))
+                print("Using the pre-trained word2vec")
+            else:
+                print("Not using the pre-trained word2vec")
+                
                 
             test_accuracy = testmodel.run_on(session, X_test, y_test, False)
             print("Testing Set Accuracy: %.3f" % (test_accuracy))          
@@ -733,15 +792,103 @@ train_and_test(config.TRAIN_STEPS)
 
 
 
-#def test_one_sample(string):
+def test_one_sample(string, doprint=False):
+    if doprint: print(string)
+    dataset = [moviedat.lookup[i] if i in moviedat.lookup.keys() else moviedat.lookup["<UNK>"] for i in preparestring(string).split(" ")] #oh damn, für solche einzeiler liebe ich python.
+    dataset = dataset + [0]*(moviedat.maxlenstring-len(dataset))
+    dataset = [dataset]*config.batch_size 
+    data_t = to_one_hot([0]*config.batch_size)
+    with tf.Graph().as_default(), tf.Session() as session:
+        initializer = tf.random_uniform_initializer(-0.1, 0.1)
     
+        with tf.variable_scope("model", reuse=None, initializer=initializer):    
+            testmodel = LSTM(is_training=False)
+    
+            saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
+           
+            ckpt = tf.train.get_checkpoint_state("./") 
+            if ckpt and ckpt.model_checkpoint_path:
+                #print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+                saver.restore(session, ckpt.model_checkpoint_path)
+            else:
+                print("nope, not like that") #TODO: er sollte es halt auch noch live haben.. kack tf.
+                
+            result = session.run([testmodel.logits], feed_dict={testmodel.input_data: dataset, testmodel.target: data_t})
+
+            whatis = stats.mode(np.argmax(result[0], 1))[0][0]
+
+            if doprint: print("good movie" if whatis != 0 else "bad movie")
+            
+            return (whatis == 0)
+
+test_one_sample("I hated this movie. It sucks.", True)
 
 
+class global_plot:
+    def __init__(self, x_lim):
+        self.x_lim = x_lim
+        self.fig = plt.figure()
+        plt.ion()
+        self.ax1 = self.fig.add_subplot(111)
+        self.ax1.set_xlim([0, self.x_lim])
+        self.ax1.set_ylim([0, 1])
+        self.current_x = 0
+        self.trainvals = []
+        self.testvlals = []
+        
+    def update_plot(self, new_train, new_test):
+        self.current_x += 1
+        x = range(self.current_x)
+        self.trainvals.append(new_train)
+        self.testvals.append(new_test)
+        self.ax1.clear()
+        self.ax1.set_xlim([0, self.x_lim])
+        self.ax1.set_ylim([0, 1])
+        self.ax1.plot(x,self.trainvals,'b')
+        self.ax1.plot(x,self.testvals,'r')
+        self.fig.canvas.draw()
 
 
+def plot_test_and_train(amount_iterations):
+    with tf.Graph().as_default(), tf.Session() as session:
+        initializer = tf.random_uniform_initializer(-0.1, 0.1)
+    
+        with tf.variable_scope("model", reuse=None, initializer=initializer):
+            model = LSTM(is_training=True)
+
+        with tf.variable_scope("model", reuse=True, initializer=initializer): 
+            testmodel = LSTM(is_training=False)
+    
+        saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
+  
+        print("In this mode, we always create a model with fresh parameters.")
+        init = tf.global_variables_initializer()
+        init.run()
+        iteration = 0
+        
+        if config.use_w2v:
+            session.run(model.embedding.assign(moviedat.wordvecs))
+            session.run(testmodel.embedding.assign(moviedat.wordvecs))
+            print("Using the pre-trained word2vec")
+        else:
+            print("Not using the pre-trained word2vec")
+           
+        plot = global_plot(amount_iterations)
+        print("Running",amount_iterations,"iterations.")
+        
+        for i in range(amount_iterations):
+            train_accuracy = model.run_on(session, X_train, y_train, True, saver, iteration, i, amount_iterations, True)
+            test_accuracy = testmodel.run_on(session, X_test, y_test, False)
+            print("Epoch: %d \t Train Accuracy: %.3f \t Testing Accuracy: %.3f" % (i + 1, train_accuracy, test_accuracy))          
+  
+            plot.update_plot(train_accuracy, test_accuracy)
+    
+    
+#def prepare_checkpoint():
+    #TODO: was das hier macht die "checkpoint"-datei zu ändern, in entweder mit oder ohne own word2vec
 
 
-
+#==============================================================================
 
 
 
