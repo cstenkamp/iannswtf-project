@@ -25,7 +25,7 @@ import shutil
 
 w2vsamplecount = 0
 
-
+ 
 class config(object):
     TRAINNAME = "train"
     TESTNAME = "test"
@@ -36,7 +36,7 @@ class config(object):
     num_steps_w2v = 200001 #198000 ist einmal durchs ganze dataset (falls nach word2vec gekürzt)
     
     use_w2v = False
-    TRAIN_STEPS = 8
+    TRAIN_STEPS = 6
     batch_size = 32
     
 
@@ -886,30 +886,29 @@ def test_one_sample(string, doprint=False):
 
 class global_plot:
     def __init__(self, x_lim):
-        self.x_lim = x_lim
-        self.fig = plt.figure()
+        plt.axis([0.9, x_lim+0.1, 0, 1.005])
         plt.ion()
-        self.ax1 = self.fig.add_subplot(111)
-        self.ax1.set_xlim([0, self.x_lim])
-        self.ax1.set_ylim([0, 1])
-        self.current_x = 0
+        self.x_lim = x_lim
+        self.current_x = 1
         self.trainvals = []
-        self.testvlals = []
+        self.testvals = []
         
     def update_plot(self, new_train, new_test):
         self.current_x += 1
         x = range(self.current_x)
         self.trainvals.append(new_train)
         self.testvals.append(new_test)
-        self.ax1.clear()
-        self.ax1.set_xlim([0, self.x_lim])
-        self.ax1.set_ylim([0, 1])
-        self.ax1.plot(x,self.trainvals,'b')
-        self.ax1.plot(x,self.testvals,'r')
-        self.fig.canvas.draw()
+        plt.axis([0.9, self.x_lim+0.1, 0, 1.005])
+        savefig = plt.figure(1)
+        plt.plot(x,self.trainvals,'b')
+        plt.plot(x,self.testvals,'r')
+        plt.pause(0.01)
+        savefig.savefig("figure_dump.png")
 
+        
 
 def plot_test_and_train(amount_iterations):
+    #TODO: hier bei jeder einzelnen Iteration speichern und letztlich das vom argmax nur behalten!!!
     with tf.Graph().as_default(), tf.Session() as session:
         initializer = tf.random_uniform_initializer(-0.1, 0.1)
     
@@ -935,26 +934,29 @@ def plot_test_and_train(amount_iterations):
            
         plot = global_plot(amount_iterations)
         print("Running",amount_iterations,"iterations.")
+        test_accuracies = []
         
         for i in range(amount_iterations):
             train_accuracy = model.run_on(session, X_train, y_train, True, saver, iteration, i, amount_iterations, True)
+            print("")
             test_accuracy = testmodel.run_on(session, X_test, y_test, False)
             print("Epoch: %d \t Train Accuracy: %.3f \t Testing Accuracy: %.3f" % (i + 1, train_accuracy, test_accuracy))          
   
             plot.update_plot(train_accuracy, test_accuracy)
-   
-
-#def prepare_checkpoint():
-    #TODO: was das hier macht die "checkpoint"-datei zu ändern, in entweder mit oder ohne own word2vec
+            test_accuracies.append[test_accuracy]
+            
+        return (np.argmax(test_accuracies)+1)
 
 
     
  
 #==============================================================================
-    
+
+#print("Best training-set-result after",plot_test_and_train(12),"iterations")
 train_and_test(config.TRAIN_STEPS)
 validate()
-test_one_sample("I hated this movie. It sucks. The movie is bad, Wost movie ever. Bad Actors, bad everything.", True)
+
+test_one_sample("I hated this movie. It sucks. The movie is bad, Worst movie ever. Bad Actors, bad everything.", True)
 test_one_sample("I loved this movie. It is awesome. The movie is good, best movie ever. good Actors, good everything.", True)
 
 

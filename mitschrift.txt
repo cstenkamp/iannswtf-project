@@ -1,0 +1,23 @@
+DONE:
+-we have pre-trained word embeddings!
+-word2vec in eine eigene Klasse/Funktion
+-word2vec lernt auf train UND test set
+-beide sets im programflow einlesen, damit das testen leichter geht
+-das end-token adden BEVOR word2vec läuft
+-einen viel-zeit-modus machen, wo er train und test accuracy live errechnet und direkt plottet und man sich das beste aussuchen kann
+-funktion um einzelne Ratings zu geben
+-die word2vec-embeddings tatsächlich nutzen
+-gucken wie man weights speichert
+
+TODO:
+-das shortenstrings zieht noch wörter auseinander!! >.<
+-weights NACH JEDER ITERATION speichern und vor allem laden können!
+-beim viel-zeit-modus noch ganz viele einzelne weights speichern
+-oh, achja, mit pretrained wordvecs klappts noch nicht! 
+-dann das generative model.
+
+
+GENERELL
+-das bisherige guuut auskommentieren
+-quellen mitscheiben
+-mitschreiben was suboptimal ist (auch was gut, word2vec selbstcoden)
