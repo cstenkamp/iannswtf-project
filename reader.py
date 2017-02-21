@@ -6,7 +6,6 @@ Created on Fri Feb 10 12:22:43 2017
 """
 #also re-doing this: https://arxiv.org/abs/1408.5882
 
-
 import pickle
 from pathlib import Path
 import tensorflow as tf
@@ -22,6 +21,7 @@ import matplotlib.pyplot as plt
 import copy
 import time
 from scipy import stats
+import shutil
 
 w2vsamplecount = 0
 
@@ -35,8 +35,8 @@ class config(object):
     embedding_size = 128
     num_steps_w2v = 200001 #198000 ist einmal durchs ganze dataset (falls nach word2vec gekürzt)
     
-    use_w2v = True
-    TRAIN_STEPS = 1
+    use_w2v = False
+    TRAIN_STEPS = 8
     batch_size = 32
     
 
@@ -530,6 +530,36 @@ def write_iteration(number):
     infile = open("checkpoint", "w")
     infile.write("\n".join(lines));        
     infile.close()            
+    
+    
+def prepare_checkpoint():
+    def check_which():
+        try:
+            with open("checkpoint", encoding="utf8") as infile:
+                for line in infile:
+                    if line.find("_wordvecs") > 0:
+                        return 1
+                return 2
+        except FileNotFoundError:
+            return 0
+    #backup the current checkpoint...
+    if check_which() == 1:
+        shutil.copy("./checkpoint","./.checkpointbkp_withwordvecs")
+    elif check_which() == 2:
+        shutil.copy("./checkpoint","./.checkpointbkp_nowordvecs")
+    
+    #if the current checkpoint is not appropriate for the use_w2v-setting, load a backup if available.
+    if not ((check_which() == 1 and config.use_w2v) or (check_which() == 2 and not config.use_w2v)):
+        if config.use_w2v:
+            if Path("./.checkpointbkp_withwordvecs").is_file():
+                shutil.copy("./.checkpointbkp_withwordvecs","./checkpoint")
+            else:
+                print("Couldn't load checkpoint!")
+        else:
+            if Path("./.checkpointbkp_nowordvecs").is_file():
+                shutil.copy("./.checkpointbkp_nowordvecs","./checkpoint")
+            else:
+                print("Couldn't load checkpoint!")
 #==============================================================================
 
 
@@ -608,13 +638,12 @@ percentage = sum([item[0] for item in y_train])/len([item[0] for item in y_train
 print(round(percentage),"% of training-data is positive")
 
 print("Starting the actual LSTM...")
-
+prepare_checkpoint()
                  
 
 #=============================================================================
 #OK. Now lets get to the actual LSTM, but using our pre-trained wordvectors.
 #http://stackoverflow.com/questions/35687678/using-a-pre-trained-word-embedding-word2vec-or-glove-in-tensorflow?rq=1
-
 
 
 def create_batches(data_X, data_Y, batch_size):
@@ -723,7 +752,6 @@ def initialize_uninitialized_vars(session):
     session.run(init_new_vars_op)
             
 
-
 def train_and_test(amount_iterations):
     with tf.Graph().as_default(), tf.Session() as session:
         initializer = tf.random_uniform_initializer(-0.1, 0.1)
@@ -788,12 +816,46 @@ def train_and_test(amount_iterations):
             print("Testing Set Accuracy: %.3f" % (test_accuracy))          
 
 
-train_and_test(config.TRAIN_STEPS)
 
 
+
+
+def validate():
+   with tf.Graph().as_default(), tf.Session() as session:
+       initializer = tf.random_uniform_initializer(-0.1, 0.1)
+    
+       with tf.variable_scope("model", reuse=None, initializer=initializer):
+            print("Trying to apply the model to the validation-set...")        
+            testmodel = LSTM(is_training=False)
+
+            saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
+           
+            ckpt = tf.train.get_checkpoint_state("./") #TODO: da unterscheidet er noch nicht zwischen mit und ohne w2v..
+            if ckpt and ckpt.model_checkpoint_path:
+                print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+                saver.restore(session, ckpt.model_checkpoint_path)
+                print(read_iteration(),"iterations ran already.")
+            else:
+                print("uhm, without a model it doesn't work") #TODO: anders
+                exit()
+            
+            if config.use_w2v:
+                session.run(testmodel.embedding.assign(moviedat.wordvecs))
+                print("Using the pre-trained word2vec")
+            else:
+                print("Not using the pre-trained word2vec")
+                
+                
+            valid_accuracy = testmodel.run_on(session, X_validat, y_validat, False)
+            print("Validation Set Accuracy: %.3f" % (valid_accuracy))     
+            
+            
+            
+            
+            
 
 def test_one_sample(string, doprint=False):
-    if doprint: print(string)
+    if doprint: print("Possible Review:",string)
     dataset = [moviedat.lookup[i] if i in moviedat.lookup.keys() else moviedat.lookup["<UNK>"] for i in preparestring(string).split(" ")] #oh damn, für solche einzeiler liebe ich python.
     dataset = dataset + [0]*(moviedat.maxlenstring-len(dataset))
     dataset = [dataset]*config.batch_size 
@@ -817,11 +879,9 @@ def test_one_sample(string, doprint=False):
 
             whatis = stats.mode(np.argmax(result[0], 1))[0][0]
 
-            if doprint: print("good movie" if whatis != 0 else "bad movie")
+            if doprint: print("-> Possible Rating: good movie" if whatis != 0 else "-> Possible Rating: bad movie")
             
-            return (whatis == 0)
-
-test_one_sample("I hated this movie. It sucks.", True)
+            return (whatis == 1)
 
 
 class global_plot:
@@ -882,56 +942,31 @@ def plot_test_and_train(amount_iterations):
             print("Epoch: %d \t Train Accuracy: %.3f \t Testing Accuracy: %.3f" % (i + 1, train_accuracy, test_accuracy))          
   
             plot.update_plot(train_accuracy, test_accuracy)
-    
-    
+   
+
 #def prepare_checkpoint():
     #TODO: was das hier macht die "checkpoint"-datei zu ändern, in entweder mit oder ohne own word2vec
 
 
-#==============================================================================
-
-
-
-#W = tf.Variable(tf.constant(0.0, shape=[moviedat.ohnum+1, config.embedding_size]), trainable=False, name="W")
-#
-#embedding_placeholder = tf.placeholder(tf.float32, [moviedat.ohnum+1, config.embedding_size])
-#embedding_init = W.assign(embedding_placeholder)
-#
-#
-#sess = tf.Session()
-#
-#sess.run(embedding_init, feed_dict={embedding_placeholder: moviedat.wordvecs})
-
-
-#inputs = tf.placeholder(tf.int32, [batch_size, num_steps])
-#targets = tf.placeholder(tf.float32, [batch_size, n_classes])
-
     
+ 
+#==============================================================================
+    
+train_and_test(config.TRAIN_STEPS)
+validate()
+test_one_sample("I hated this movie. It sucks. The movie is bad, Wost movie ever. Bad Actors, bad everything.", True)
+test_one_sample("I loved this movie. It is awesome. The movie is good, best movie ever. good Actors, good everything.", True)
 
 
 print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
 
 #==============================================================================
-#      
-# #uniformly distributed unit cube    
-# embeddings = tf.Variable(tf.random_uniform([vocabulary_size, embedding_size], -1.0, 1.0))  
-# #output weights and input weights for every word in the vocab  
-# nce_weights = tf.Variable(tf.truncated_normal([vocabulary_size, embedding_size],stddev=1.0 / math.sqrt(embedding_size)))
-# nce_biases = tf.Variable(tf.zeros([vocabulary_size]))
-# #Placeholder for inputs for the skip-gram model graph. Each word is represented as an integer. Inputs: batch full of integers representing the source context words & the target words    
-# train_inputs = tf.placeholder(tf.int32, shape=[batch_size])
-# train_labels = tf.placeholder(tf.int32, shape=[batch_size, 1])
-# #look up the vector for each source word in the batch
-# embed = tf.nn.embedding_lookup(embeddings, train_inputs)
-# #predict target-word using noise-constrastrive training objective:  Compute the NCE loss, using a sample of the negative labels each time.
-# loss = tf.reduce_mean(tf.nn.nce_loss(nce_weights, nce_biases, embed, train_labels,num_sampled, vocabulary_size))
-# #add the required loss nodes to compute gradients: Stochastic Gradient Descent Optimizer.
-# optimizer = tf.train.GradientDescentOptimizer(learning_rate=1.0).minimize(loss)
-# 
-# #train the model: 
-# for inputs, labels in generate_batch(...):
-#   feed_dict = {training_inputs: inputs, training_labels: labels}
-#   _, cur_loss = session.run([optimizer, loss], feed_dict=feed_dict)
-#     
-#==============================================================================
+#OK, now the Generative Model. Yay
+#https://arxiv.org/pdf/1609.05473.pdf
+#https://github.com/dennybritz/deeplearning-papernotes/blob/master/notes/seq-gan.md
+
+
+
+
+
 
