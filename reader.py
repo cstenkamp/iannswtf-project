@@ -763,7 +763,7 @@ def train_and_test(amount_iterations):
     
             saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
            
-            ckpt = tf.train.get_checkpoint_state("./") #TODO: da unterscheidet er noch nicht zwischen mit und ohne w2v..
+            ckpt = tf.train.get_checkpoint_state("./") 
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)

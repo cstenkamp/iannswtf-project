@@ -18,7 +18,7 @@ HIDDEN_DIM = 32
 SEQ_LENGTH = 20
 START_TOKEN = 0
 
-PRE_EPOCH_NUM = 240
+PRE_EPOCH_NUM = 80 #240
 TRAIN_ITER = 1  # generator
 SEED = 88
 BATCH_SIZE = 64
@@ -101,16 +101,58 @@ def significance_test(sess, target_lstm, data_loader, output_file):
             fout.write(buffer)
 
 
-def pre_train_epoch(sess, trainable_model, data_loader):
+def pre_train_epoch(sess, trainable_model, data_loader, saver):
     supervised_g_losses = []
     data_loader.reset_pointer()
 
     for it in range(data_loader.num_batch):
         batch = data_loader.next_batch()
-        _, g_loss, g_pred = trainable_model.pretrain_step(sess, batch)
+        _, g_loss, g_pred = trainable_model.pretrain_step(sess, batch, saver)
         supervised_g_losses.append(g_loss)
 
     return np.mean(supervised_g_losses)
+
+def initialize_uninitialized_vars(session):
+    uninitialized_vars = []
+    for var in tf.global_variables():
+        try:
+            session.run(var)
+        except tf.errors.FailedPreconditionError:
+            uninitialized_vars.append(var)
+    init_new_vars_op = tf.variables_initializer(uninitialized_vars)
+    session.run(init_new_vars_op)
+            
+#======================================================================== #TODO: make extra-file for those helpers
+def read_iteration():
+    try:
+        with open("checkpoint", encoding="utf8") as infile:
+            for line in infile:
+                line = line.replace("\n","")
+                if line[:11] == "#Iteration:":
+                     iterations = int(line[line.find('"'):][1:-1])
+                     return iterations
+            return 0
+    except FileNotFoundError:
+        return 0
+
+def increase_iteration():
+    write_iteration(read_iteration()+1)
+    
+def write_iteration(number):
+    try:
+        lines = []
+        with open("checkpoint", encoding="utf8") as infile:
+            for line in infile:
+                line = line.replace("\n","")
+                if not line[:11] == "#Iteration:":
+                    lines.append(line)
+            lines.append('#Iteration: "'+str(number)+'"')
+    except FileNotFoundError:
+        lines.append('#Iteration: "'+str(number)+'"')
+    infile = open("checkpoint", "w")
+    infile.write("\n".join(lines));        
+    infile.close()     
+#========================================================================
 
 
 def main():
@@ -152,11 +194,26 @@ def main():
     # config.gpu_options.per_process_gpu_memory_fraction = 0.5
     config.gpu_options.allow_growth = True
     sess = tf.Session(config=config)
-    init = tf.global_variables_initializer()
-    init.run(session=sess)    
 
+    
+    
     generate_samples(sess, target_lstm, 64, 10000, positive_file)
     gen_data_loader.create_batches(positive_file)
+
+    saver = tf.train.Saver({"pretrain_updates": generator.pretrain_updates, "pretrain_loss": generator.pretrain_loss, "g_predictions": generator.g_predictions})    
+    ckpt = tf.train.get_checkpoint_state("./") 
+    if ckpt and ckpt.model_checkpoint_path:
+        print("Reading preprocessing-model parameters from %s" % ckpt.model_checkpoint_path)
+        saver.restore(sess, ckpt.model_checkpoint_path)
+        initialize_uninitialized_vars(sess)
+        iteration = read_iteration()
+        print(iteration,"preprocessing - iterations ran already.")
+    else:
+        print("Created preprocessing-model with fresh parameters.")
+        init = tf.global_variables_initializer()
+        init.run(session = sess)
+        iteration = 0
+  
 
     log = open('log/experiment-log.txt', 'w')
     #  pre-train generator
@@ -164,7 +221,7 @@ def main():
     log.write('pre-training...\n')
     for epoch in range(PRE_EPOCH_NUM):
         print('pre-train epoch:', epoch)
-        loss = pre_train_epoch(sess, generator, gen_data_loader)
+        loss = pre_train_epoch(sess, generator, gen_data_loader, saver)
         if epoch % 5 == 0:
             generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
             likelihood_data_loader.create_batches(eval_file)
