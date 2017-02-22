@@ -21,3 +21,4 @@ GENERELL
 -das bisherige guuut auskommentieren
 -quellen mitscheiben
 -mitschreiben was suboptimal ist (auch was gut, word2vec selbstcoden)
+-gucken ob der beim twitter-set "4" und "for" nah beieinander macht :o
