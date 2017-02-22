@@ -325,7 +325,7 @@ def generate_batch(batch_size, num_skips, skip_window, dataset):
               lens = [len(moviedat.traintargets) if config.w2v_usesets[0] else 0, len(moviedat.testtargets) if config.w2v_usesets[1] else 0, len(moviedat.validtargets) if config.w2v_usesets[2] else 0]
               currset = np.random.permutation([0]*lens[0]+[1]*lens[1]+[2]*lens[2])
               permutations = [np.random.permutation(i) for i in lens]
-              dindex = [0,[0,0,0],0] #...wird alles resettet.
+              dindex = [0,[0,0,0],0] #...wird alles resettet. 
               print("Once more through the entire dataset")
               
     for i in range(batch_size // num_skips):
