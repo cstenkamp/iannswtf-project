@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import copy
 import time
 from scipy import stats
-import shutil
+import file_functions
 
 w2vsamplecount = 0
 
@@ -501,66 +501,6 @@ def to_one_hot(y):
     return np.array([np.array(row) for row in y_one_hot])
 
 #==============================================================================
-def read_iteration():
-    try:
-        with open("checkpoint", encoding="utf8") as infile:
-            for line in infile:
-                line = line.replace("\n","")
-                if line[:11] == "#Iteration:":
-                     iterations = int(line[line.find('"'):][1:-1])
-                     return iterations
-            return 0
-    except FileNotFoundError:
-        return 0
-
-def increase_iteration():
-    write_iteration(read_iteration()+1)
-    
-def write_iteration(number):
-    try:
-        lines = []
-        with open("checkpoint", encoding="utf8") as infile:
-            for line in infile:
-                line = line.replace("\n","")
-                if not line[:11] == "#Iteration:":
-                    lines.append(line)
-            lines.append('#Iteration: "'+str(number)+'"')
-    except FileNotFoundError:
-        lines.append('#Iteration: "'+str(number)+'"')
-    infile = open("checkpoint", "w")
-    infile.write("\n".join(lines));        
-    infile.close()            
-    
-    
-def prepare_checkpoint():
-    def check_which():
-        try:
-            with open("checkpoint", encoding="utf8") as infile:
-                for line in infile:
-                    if line.find("_wordvecs") > 0:
-                        return 1
-                return 2
-        except FileNotFoundError:
-            return 0
-    #backup the current checkpoint...
-    if check_which() == 1:
-        shutil.copy("./checkpoint","./.checkpointbkp_withwordvecs")
-    elif check_which() == 2:
-        shutil.copy("./checkpoint","./.checkpointbkp_nowordvecs")
-    
-    #if the current checkpoint is not appropriate for the use_w2v-setting, load a backup if available.
-    if not ((check_which() == 1 and config.use_w2v) or (check_which() == 2 and not config.use_w2v)):
-        if config.use_w2v:
-            if Path("./.checkpointbkp_withwordvecs").is_file():
-                shutil.copy("./.checkpointbkp_withwordvecs","./checkpoint")
-            else:
-                print("Couldn't load checkpoint!")
-        else:
-            if Path("./.checkpointbkp_nowordvecs").is_file():
-                shutil.copy("./.checkpointbkp_nowordvecs","./checkpoint")
-            else:
-                print("Couldn't load checkpoint!")
-#==============================================================================
 
 
 print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
@@ -638,7 +578,7 @@ percentage = sum([item[0] for item in y_train])/len([item[0] for item in y_train
 print(round(percentage),"% of training-data is positive")
 
 print("Starting the actual LSTM...")
-prepare_checkpoint()
+file_functions.prepare_checkpoint(config.use_w2v)
                  
 
 #=============================================================================
@@ -736,7 +676,7 @@ class LSTM(object):
             #TODO: beim SaveALot-Modus sollte er das jetzt re-namen in "_iterationx"
             
             time.sleep(0.1)
-            write_iteration(iteration+epoch+1)
+            file_functions.write_iteration(iteration+epoch+1)
         
         return accuracy
     
@@ -767,7 +707,7 @@ def train_and_test(amount_iterations):
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                iteration = read_iteration()
+                iteration = file_functions.read_iteration()
                 print(iteration,"iterations ran already.")
             else:
                 print("Created model with fresh parameters.")
@@ -834,7 +774,7 @@ def validate():
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                print(read_iteration(),"iterations ran already.")
+                print(file_functions.read_iteration(),"iterations ran already.")
             else:
                 print("uhm, without a model it doesn't work") #TODO: anders
                 exit()
