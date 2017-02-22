@@ -1,5 +1,0 @@
-model_checkpoint_path: "pretrain.ckpt"
-all_model_checkpoint_paths: "pretrain.ckpt"
-#Preprocess-Iteration: "3"
-#Discriminator-Iteration: "5"
-#Reinforcement-Iteration: "51"
