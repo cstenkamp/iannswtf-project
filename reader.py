@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import copy
 import time
 from scipy import stats
-import shutil
+import file_functions
 
 w2vsamplecount = 0
 
@@ -35,7 +35,7 @@ class config(object):
     embedding_size = 128
     num_steps_w2v = 200001 #198000 ist einmal durchs ganze dataset (falls nach word2vec gekürzt)
     
-    use_w2v = False
+    use_w2v = True
     TRAIN_STEPS = 6
     batch_size = 32
     
@@ -292,14 +292,41 @@ def make_dataset(whichsets = [True, True, True]):
 
 
 
-        
+def batch_buffer_append(firsttime=False):
+    global dindex, permutations, currset, w2vsamplecount
+    if firsttime:
+        lens = [len(moviedat.traintargets) if config.w2v_usesets[0] else 0, len(moviedat.testtargets) if config.w2v_usesets[1] else 0, len(moviedat.validtargets) if config.w2v_usesets[2] else 0]
+        currset = np.random.permutation([0]*lens[0]+[1]*lens[1]+[2]*lens[2])
+        permutations = [np.random.permutation(i) for i in lens]
+        dindex = [0,[0,0,0],0]  #dindex is: whichset, permuations[currset[dindex[0]]], index of that review
+        return 
+    else:
+        if currset[dindex[0]] == 0:   #wir haben ne zufällige reihenfolge, laut welcher aus train, test oder valid gezogen wird...
+            temp = moviedat.trainreviews[permutations[dindex[1]][currset[dindex[0]]]]
+        elif currset[dindex[0]] == 1: #(allerdings 0 mal für set x falls set x nicht drankommen soll...)
+            temp = moviedat.testreviews[permutations[dindex[1]][currset[dindex[0]]]]
+        elif currset[dindex[0]] == 2: #und innerhalb der 3 sets gibt es einen eigen fortlaufenden permutationsindex, sodass jedes element 1 mal dran kommt.
+            temp = moviedat.validreviews[permutations[dindex[1]][currset[dindex[0]]]]
+        toappend = temp[dindex[2]]      
+        dindex[2] += 1
+        if dindex[2] >= len(temp): #wenn der aktuelle review mit nummer x aus set y ende ist...
+            dindex[2] = 0
+            dindex[1][currset[dindex[0]]] += 1
+            dindex[0] += 1 #gehe zum nächstem review, das auch in einen anderem set sein kann
+            w2vsamplecount += 1
+            if dindex[0] >= len(currset): #wenn du alle 3 sets durch hast..
+                lens = [len(moviedat.traintargets) if config.w2v_usesets[0] else 0, len(moviedat.testtargets) if config.w2v_usesets[1] else 0, len(moviedat.validtargets) if config.w2v_usesets[2] else 0]
+                currset = np.random.permutation([0]*lens[0]+[1]*lens[1]+[2]*lens[2])
+                permutations = [np.random.permutation(i) for i in lens]
+                dindex = [0,[0,0,0],0] #...wird alles resettet.
+                print("Once more through the entire dataset")
+        return toappend
 
 
 
 
 # Function to generate a training batch for the skip-gram model.
 def generate_batch(batch_size, num_skips, skip_window, dataset):
-    global dindex, permutations, currset, w2vsamplecount #dindex = [0,[0,0,0],0]
     assert batch_size % num_skips == 0
     assert num_skips <= 2 * skip_window
     batch = np.ndarray(shape=(batch_size), dtype=np.int32)
@@ -307,27 +334,8 @@ def generate_batch(batch_size, num_skips, skip_window, dataset):
     span = 2 * skip_window + 1  # [ skip_window target skip_window ]
     buffer = collections.deque(maxlen=span)
     for _ in range(span):
-        
-      if currset[dindex[0]] == 0:   #wir haben ne zufällige reihenfolge, laut welcher aus train, test oder valid gezogen wird...
-          temp = moviedat.trainreviews[dindex[1][currset[dindex[0]]]]
-      elif currset[dindex[0]] == 1: #(allerdings 0 mal für set x falls set x nicht drankommen soll...)
-          temp = moviedat.testreviews[dindex[1][currset[dindex[0]]]]
-      elif currset[dindex[0]] == 2: #und innerhalb der 3 sets gibt es einen eigen fortlaufenden permutationsindex, sodass jedes element 1 mal dran kommt.
-          temp = moviedat.validreviews[dindex[1][currset[dindex[0]]]]
-      buffer.append(temp[dindex[2]])
-      dindex[2] += 1
-      if dindex[2] >= len(temp): #wenn der aktuelle review mit nummer x aus set y ende ist...
-          dindex[2] = 0
-          dindex[1][currset[dindex[0]]] += 1
-          dindex[0] += 1 #gehe zum nächstem review, das auch in einen anderem set sein kann
-          w2vsamplecount += 1
-          if dindex[0] >= len(currset): #wenn du alle 3 sets durch hast..
-              lens = [len(moviedat.traintargets) if config.w2v_usesets[0] else 0, len(moviedat.testtargets) if config.w2v_usesets[1] else 0, len(moviedat.validtargets) if config.w2v_usesets[2] else 0]
-              currset = np.random.permutation([0]*lens[0]+[1]*lens[1]+[2]*lens[2])
-              permutations = [np.random.permutation(i) for i in lens]
-              dindex = [0,[0,0,0],0] #...wird alles resettet. 
-              print("Once more through the entire dataset")
-              
+      buffer.append(batch_buffer_append)
+    
     for i in range(batch_size // num_skips):
       target = skip_window  # target label at the center of the buffer
       targets_to_avoid = [skip_window]
@@ -337,34 +345,25 @@ def generate_batch(batch_size, num_skips, skip_window, dataset):
         targets_to_avoid.append(target)
         batch[i * num_skips + j] = buffer[skip_window]
         labels[i * num_skips + j, 0] = buffer[target]
-
-      if currset[dindex[0]] == 0:   #wir haben ne zufällige reihenfolge, laut welcher aus train, test oder valid gezogen wird...
-          temp = moviedat.trainreviews[dindex[1][currset[dindex[0]]]]
-      elif currset[dindex[0]] == 1: #(allerdings 0 mal für set x falls set x nicht drankommen soll...)
-          temp = moviedat.testreviews[dindex[1][currset[dindex[0]]]]
-      elif currset[dindex[0]] == 2: #und innerhalb der 3 sets gibt es einen eigen fortlaufenden permutationsindex, sodass jedes element 1 mal dran kommt.
-          temp = moviedat.validreviews[dindex[1][currset[dindex[0]]]]
-      buffer.append(temp[dindex[2]])
-      dindex[2] += 1
-      if dindex[2] >= len(temp): #wenn der aktuelle review mit nummer x aus set y ende ist...
-          dindex[2] = 0
-          dindex[1][currset[dindex[0]]] += 1
-          dindex[0] += 1 #gehe zum nächstem review, das auch in einen anderem set sein kann
-          w2vsamplecount += 1
-          if dindex[0] >= len(currset): #wenn du alle 3 sets durch hast..
-              lens = [len(moviedat.traintargets) if config.w2v_usesets[0] else 0, len(moviedat.testtargets) if config.w2v_usesets[1] else 0, len(moviedat.validtargets) if config.w2v_usesets[2] else 0]
-              currset = np.random.permutation([0]*lens[0]+[1]*lens[1]+[2]*lens[2])
-              permutations = [np.random.permutation(i) for i in lens]
-              dindex = [0,[0,0,0],0] #...wird alles resettet.
-              print("Once more through the entire dataset")
-                    
+      buffer.append(batch_buffer_append)
+              
     return batch, labels
 
 
 
 
 # Step 4: Build and train a skip-gram model.
-def perform_word2vec(dataset):
+def perform_word2vec(dataset, print_example=False):
+    
+    batch_buffer_append(True)
+    
+    if print_example:
+        batch, labels = generate_batch(batch_size=8, num_skips=2, skip_window=1, dataset=moviedat)
+        for i in range(8):
+          print(batch[i], moviedat.uplook[batch[i]], '->', labels[i, 0], moviedat.uplook[labels[i, 0]])
+        #zwischen 2 generateten batches sind 1-2 wörter lücke, don't ask me why.
+        batch_buffer_append(True)
+      
     batch_size = 128
     skip_window = 1       # How many words to consider left and right.
     num_skips = 2         # How many times to reuse an input to generate a label.
@@ -501,126 +500,61 @@ def to_one_hot(y):
     return np.array([np.array(row) for row in y_one_hot])
 
 #==============================================================================
-def read_iteration():
-    try:
-        with open("checkpoint", encoding="utf8") as infile:
-            for line in infile:
-                line = line.replace("\n","")
-                if line[:11] == "#Iteration:":
-                     iterations = int(line[line.find('"'):][1:-1])
-                     return iterations
-            return 0
-    except FileNotFoundError:
-        return 0
-
-def increase_iteration():
-    write_iteration(read_iteration()+1)
-    
-def write_iteration(number):
-    try:
-        lines = []
-        with open("checkpoint", encoding="utf8") as infile:
-            for line in infile:
-                line = line.replace("\n","")
-                if not line[:11] == "#Iteration:":
-                    lines.append(line)
-            lines.append('#Iteration: "'+str(number)+'"')
-    except FileNotFoundError:
-        lines.append('#Iteration: "'+str(number)+'"')
-    infile = open("checkpoint", "w")
-    infile.write("\n".join(lines));        
-    infile.close()            
-    
-    
-def prepare_checkpoint():
-    def check_which():
-        try:
-            with open("checkpoint", encoding="utf8") as infile:
-                for line in infile:
-                    if line.find("_wordvecs") > 0:
-                        return 1
-                return 2
-        except FileNotFoundError:
-            return 0
-    #backup the current checkpoint...
-    if check_which() == 1:
-        shutil.copy("./checkpoint","./.checkpointbkp_withwordvecs")
-    elif check_which() == 2:
-        shutil.copy("./checkpoint","./.checkpointbkp_nowordvecs")
-    
-    #if the current checkpoint is not appropriate for the use_w2v-setting, load a backup if available.
-    if not ((check_which() == 1 and config.use_w2v) or (check_which() == 2 and not config.use_w2v)):
-        if config.use_w2v:
-            if Path("./.checkpointbkp_withwordvecs").is_file():
-                shutil.copy("./.checkpointbkp_withwordvecs","./checkpoint")
-            else:
-                print("Couldn't load checkpoint!")
-        else:
-            if Path("./.checkpointbkp_nowordvecs").is_file():
-                shutil.copy("./.checkpointbkp_nowordvecs","./checkpoint")
-            else:
-                print("Couldn't load checkpoint!")
-#==============================================================================
 
 
 print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
-print('Loading data...')
 
-if Path("./ratings_mit_wordvecs.pkl").is_file():
-    print("Dataset including word2vec found!")
-    with open('ratings_mit_wordvecs.pkl', 'rb') as input:
-        moviedat = pickle.load(input)       
 
-else:
-    if Path("./ratings_ohne_wordvecs.pkl").is_file():
-        print("dataset without word2vec found.")
-        with open('ratings_ohne_wordvecs.pkl', 'rb') as input:
-            moviedat = pickle.load(input)  
-        print(moviedat.ohnum," different words.")
-        moviedat.ohnum += 1 #TODO: DAS HIER MUSS RAUS SOBALD DAS DATASET NOCHMAL ERSTELLT WIRD!!
-            
-    else:
-        print("No dataset found! Creating new...")
-        moviedat = make_dataset(config.w2v_usesets)
-        #print("Shortening to", moviedat.shortendata([True, True, True], .75, 40, True))
-        print(""+str(moviedat.ohnum)+" different words.")
-        rand = round(random.uniform(0,len(moviedat.traintargets)))
-        print('Sample review', moviedat.trainreviews[rand][0:100], [moviedat.uplook[i] for i in moviedat.trainreviews[rand][0:100]])
-        
-        with open('ratings_ohne_wordvecs.pkl', 'wb') as output:
-            pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)
-            print('Saved the dataset as Pickle-File')
-       
-    ## let's get to word2vec (https://www.tensorflow.org/tutorials/word2vec/)
-    #TODO: CBOW statt skip-gram, da wir nen kleines dataset haben!
-    print("Starting word2vec...")
+def load_moviedata(include_w2v, include_tsne):    
+    print('Loading data...')
     
-    lens = [len(moviedat.traintargets) if config.w2v_usesets[0] else 0, len(moviedat.testtargets) if config.w2v_usesets[1] else 0, len(moviedat.validtargets) if config.w2v_usesets[2] else 0]
-    currset = np.random.permutation([0]*lens[0]+[1]*lens[1]+[2]*lens[2])
-    permutations = [np.random.permutation(i) for i in lens]
-    dindex = [0,[0,0,0],0]  #dindex is: whichset, permuations[currset[dindex[0]]], index of that review
-    batch, labels = generate_batch(batch_size=8, num_skips=2, skip_window=1, dataset=moviedat)
-    for i in range(8):
-      print(batch[i], moviedat.uplook[batch[i]], '->', labels[i, 0], moviedat.uplook[labels[i, 0]])
-    #zwischen 2 generateten batches sind 1-2 wörter lücke, don't ask me why.
+    if Path("./ratings_mit_wordvecs.pkl").is_file():
+        print("Dataset including word2vec found!")
+        with open('ratings_mit_wordvecs.pkl', 'rb') as input:
+            moviedat = pickle.load(input)       
+    else:
+        if Path("./ratings_ohne_wordvecs.pkl").is_file():
+            print("dataset without word2vec found.")
+            with open('ratings_ohne_wordvecs.pkl', 'rb') as input:
+                moviedat = pickle.load(input)  
+            print(moviedat.ohnum," different words.")
+            moviedat.ohnum += 1 #TODO: DAS HIER MUSS RAUS SOBALD DAS DATASET NOCHMAL ERSTELLT WIRD!!
+        else:
+            print("No dataset found! Creating new...")
+            moviedat = make_dataset(config.w2v_usesets)
+            #print("Shortening to", moviedat.shortendata([True, True, True], .75, 40, True))
+            print(""+str(moviedat.ohnum)+" different words.")
+            rand = round(random.uniform(0,len(moviedat.traintargets)))
+            print('Sample review', moviedat.trainreviews[rand][0:100], [moviedat.uplook[i] for i in moviedat.trainreviews[rand][0:100]])
+            
+            with open('ratings_ohne_wordvecs.pkl', 'wb') as output:
+                pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)
+                print('Saved the dataset as Pickle-File')
+                
+        if include_w2v: #https://www.tensorflow.org/tutorials/word2vec/
+            #TODO: CBOW statt skip-gram, da wir nen kleines dataset haben!
+            print("Starting word2vec...")
+            
+            moviedat.add_wordvectors(perform_word2vec(moviedat))
+            with open('ratings_mit_wordvecs.pkl', 'wb') as output:
+                pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)
+            print("Saved word2vec-Results.")
+            print("Word2vec ran through",w2vsamplecount,"different reviews.")
+            moviedat.printcloseones("woman")
+            moviedat.printcloseones("<dot>")
+            moviedat.printcloseones("movie")
+            moviedat.printcloseones("his")
+            moviedat.printcloseones("bad")
+            moviedat.printcloseones("three")
 
-    final_embeddings = perform_word2vec(moviedat)
-    moviedat.add_wordvectors(final_embeddings)
-    with open('ratings_mit_wordvecs.pkl', 'wb') as output:
-        pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)
-    print("Saved word2vec-Results.")
-    print("Word2vec ran through ",w2vsamplecount," different reviews.")
-    moviedat.printcloseones("woman")
-    moviedat.printcloseones("<dot>")
-    moviedat.printcloseones("movie")
-    moviedat.printcloseones("his")
-    moviedat.printcloseones("bad")
-    moviedat.printcloseones("three")
+            if include_tsne: plot_tsne(moviedat.wordvecs, moviedat)
+            
+    print('Data loaded.')
+    return moviedat
 
 
-#plot_tsne(moviedat.wordvecs, moviedat)
+moviedat = load_moviedata(config.use_w2v, False)
 
-print('Data loaded.')
 
 print("Shortening to", moviedat.shortendata([True, True, True], .75, 40, False))
 #print("Max-Len:",moviedat.maxlenstring)
@@ -638,7 +572,7 @@ percentage = sum([item[0] for item in y_train])/len([item[0] for item in y_train
 print(round(percentage),"% of training-data is positive")
 
 print("Starting the actual LSTM...")
-prepare_checkpoint()
+file_functions.prepare_checkpoint(config.use_w2v)
                  
 
 #=============================================================================
@@ -736,7 +670,7 @@ class LSTM(object):
             #TODO: beim SaveALot-Modus sollte er das jetzt re-namen in "_iterationx"
             
             time.sleep(0.1)
-            write_iteration(iteration+epoch+1)
+            file_functions.write_iteration(iteration+epoch+1)
         
         return accuracy
     
@@ -767,7 +701,7 @@ def train_and_test(amount_iterations):
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                iteration = read_iteration()
+                iteration = file_functions.read_iteration()
                 print(iteration,"iterations ran already.")
             else:
                 print("Created model with fresh parameters.")
@@ -834,7 +768,7 @@ def validate():
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                print(read_iteration(),"iterations ran already.")
+                print(file_functions.read_iteration(),"iterations ran already.")
             else:
                 print("uhm, without a model it doesn't work") #TODO: anders
                 exit()
