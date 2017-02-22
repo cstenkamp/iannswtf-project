@@ -18,7 +18,7 @@ HIDDEN_DIM = 32
 SEQ_LENGTH = 20
 START_TOKEN = 0
 
-PRE_EPOCH_NUM = 2 #240
+PRE_EPOCH_NUM = 240 #240
 TRAIN_ITER = 1  # generator
 SEED = 88
 BATCH_SIZE = 64
@@ -38,7 +38,7 @@ dis_l2_reg_lambda = 0.2
 # Training parameters
 dis_batch_size = 64
 dis_num_epochs = 3
-dis_alter_epoch = 50
+dis_alter_epoch = 50 #50
 
 positive_file = 'save/real_data.txt'
 negative_file = 'target_generate/generator_sample.txt'
@@ -204,15 +204,18 @@ def main():
         print("Reading preprocessing-model parameters from %s" % ckpt.model_checkpoint_path)
         saver.restore(sess, ckpt.model_checkpoint_path)
         initialize_uninitialized_vars(sess)
-        pre_iteration = read_iteration("Preprocess-Iteration")
+        
+        pretrainiters = pre_iteration = read_iteration("Preprocess-Iteration")
         print(pre_iteration,"preprocessing - iterations ran already.")
-        dis_iteration = read_iteration("Discriminator-Iteration")
+        distrainiters = dis_iteration = read_iteration("Discriminator-Iteration")
         print(dis_iteration,"Discriminator - iterations ran already.")
+        reitrainiters = rei_iteration = read_iteration("Reinforcement-Iteration")
+        print(rei_iteration,"Reinforcement - iterations ran already.")
     else:
         print("Created preprocessing-model with fresh parameters.")
         init = tf.global_variables_initializer()
         init.run(session = sess)
-        pre_iteration = 0
+        pretrainiters = pre_iteration = 0
 
     generate_samples(sess, target_lstm, 64, 10000, positive_file)
     gen_data_loader.create_batches(positive_file)
@@ -234,6 +237,8 @@ def main():
         saver.save(sess, "./pretrain.ckpt")
         pretrainiters = pre_iteration+epoch+1
         write_iteration(pretrainiters,"Preprocess-Iteration")
+        write_iteration(distrainiters,"Discriminator-Iteration")
+        write_iteration(reitrainiters,"Reinforcement-Iteration")
 
     generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
     likelihood_data_loader.create_batches(eval_file)
@@ -248,7 +253,7 @@ def main():
     print('Start training discriminator for',dis_alter_epoch-dis_iteration,'further iterations (from',dis_alter_epoch,'because',dis_iteration,'are already done)')
     for i in range(dis_alter_epoch-dis_iteration):
         generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
-        print("epoch",i+1+dis_iteration,"from",dis_alter_epoch)
+        print("epoch",distrainiters,"from",dis_alter_epoch)
         #  train discriminator
         dis_x_train, dis_y_train = dis_data_loader.load_train_data(positive_file, negative_file)
         
@@ -270,16 +275,18 @@ def main():
             except ValueError:
                 pass
         saver.save(sess, "./pretrain.ckpt")
+        distrainiters = dis_iteration+i+1
         write_iteration(pretrainiters,"Preprocess-Iteration")
-        write_iteration(dis_iteration+i+1,"Discriminator-Iteration")
+        write_iteration(distrainiters,"Discriminator-Iteration")
+        write_iteration(reitrainiters,"Reinforcement-Iteration")
 
     rollout = ROLLOUT(generator, 0.8)
 
     print('#########################################################################')
-    print('Start Reinforcement Training Generator...')
+    print('Start Reinforcement Training Generator for',TOTAL_BATCH-rei_iteration,'further iteration (from',TOTAL_BATCH,'because',rei_iteration,'are already done)')
     log.write('Reinforcement Training...\n')
 
-    for total_batch in range(TOTAL_BATCH):
+    for total_batch in range(TOTAL_BATCH-rei_iteration):
         for it in range(TRAIN_ITER):
             samples = generator.generate(sess)
             rewards = rollout.get_reward(sess, samples, 16, cnn)
@@ -291,7 +298,7 @@ def main():
             likelihood_data_loader.create_batches(eval_file)
             test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
             buffer = str(total_batch) + ' ' + str(test_loss) + '\n'
-            print('total_batch: ', total_batch, 'test_loss: ', test_loss)
+            print('total_batch: ', reitrainiters, 'test_loss: ', test_loss)
             log.write(buffer)
 
             if test_loss < best_score:
@@ -323,6 +330,12 @@ def main():
                     _, step = sess.run([dis_train_op, dis_global_step], feed)
                 except ValueError:
                     pass
+        
+        saver.save(sess, "./pretrain.ckpt")
+        reitrainiters = rei_iteration+total_batch+1
+        write_iteration(pretrainiters,"Preprocess-Iteration")
+        write_iteration(distrainiters,"Discriminator-Iteration")
+        write_iteration(reitrainiters,"Reinforcement-Iteration")
 
     log.close()
 

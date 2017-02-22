@@ -34,10 +34,10 @@ class ROLLOUT(object):
 
         ta_emb_x = tensor_array_ops.TensorArray(
             dtype=tf.float32, size=self.sequence_length)
-        ta_emb_x = ta_emb_x.unpack(self.processed_x)
+        ta_emb_x = ta_emb_x.unstack(self.processed_x)
 
         ta_x = tensor_array_ops.TensorArray(dtype=tf.int32, size=self.sequence_length)
-        ta_x = ta_x.unpack(tf.transpose(self.x, perm=[1, 0]))
+        ta_x = ta_x.unstack(tf.transpose(self.x, perm=[1, 0]))
         #####################################################################################################
 
         self.h0 = tf.zeros([self.batch_size, self.hidden_dim])
@@ -72,7 +72,7 @@ class ROLLOUT(object):
             body=_g_recurrence_2,
             loop_vars=(i, x_t, h_tm1, given_num, self.gen_x))
 
-        self.gen_x = self.gen_x.pack()  # seq_length x batch_size
+        self.gen_x = self.gen_x.stack()  # seq_length x batch_size
         self.gen_x = tf.transpose(self.gen_x, perm=[1, 0])  # batch_size x seq_length
 
     def get_reward(self, sess, input_x, rollout_num, cnn):
