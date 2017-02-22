@@ -18,7 +18,7 @@ HIDDEN_DIM = 32
 SEQ_LENGTH = 20
 START_TOKEN = 0
 
-PRE_EPOCH_NUM = 48 #240
+PRE_EPOCH_NUM = 2 #240
 TRAIN_ITER = 1  # generator
 SEED = 88
 BATCH_SIZE = 64
@@ -123,32 +123,32 @@ def initialize_uninitialized_vars(session):
     session.run(init_new_vars_op)
             
 #======================================================================== #TODO: make extra-file for those helpers
-def read_iteration():
+def read_iteration(string="Iteration"):
     try:
         with open("checkpoint", encoding="utf8") as infile:
             for line in infile:
                 line = line.replace("\n","")
-                if line[:11] == "#Iteration:":
+                if line[:len(string)+2] == "#"+string+":":
                      iterations = int(line[line.find('"'):][1:-1])
                      return iterations
             return 0
     except FileNotFoundError:
         return 0
 
-def increase_iteration():
-    write_iteration(read_iteration()+1)
+def increase_iteration(string="Iteration"):
+    write_iteration(read_iteration(string)+1,string)
     
-def write_iteration(number):
+def write_iteration(number, string="Iteration"):
     try:
         lines = []
         with open("checkpoint", encoding="utf8") as infile:
             for line in infile:
                 line = line.replace("\n","")
-                if not line[:11] == "#Iteration:":
+                if not line[:len(string)+2] == "#"+string+":":
                     lines.append(line)
-            lines.append('#Iteration: "'+str(number)+'"')
+            lines.append("#"+string+': "'+str(number)+'"')
     except FileNotFoundError:
-        lines.append('#Iteration: "'+str(number)+'"')
+        lines.append("#"+string+': "'+str(number)+'"')
     infile = open("checkpoint", "w")
     infile.write("\n".join(lines));        
     infile.close()     
@@ -204,33 +204,36 @@ def main():
         print("Reading preprocessing-model parameters from %s" % ckpt.model_checkpoint_path)
         saver.restore(sess, ckpt.model_checkpoint_path)
         initialize_uninitialized_vars(sess)
-        iteration = read_iteration()
-        print(iteration,"preprocessing - iterations ran already.")
+        pre_iteration = read_iteration("Preprocess-Iteration")
+        print(pre_iteration,"preprocessing - iterations ran already.")
+        dis_iteration = read_iteration("Discriminator-Iteration")
+        print(dis_iteration,"Discriminator - iterations ran already.")
     else:
         print("Created preprocessing-model with fresh parameters.")
         init = tf.global_variables_initializer()
         init.run(session = sess)
-        iteration = 0
+        pre_iteration = 0
 
     generate_samples(sess, target_lstm, 64, 10000, positive_file)
     gen_data_loader.create_batches(positive_file)
 
     log = open('log/experiment-log.txt', 'w')
     #  pre-train generator
-    print('Start pre-training for',PRE_EPOCH_NUM-iteration,'further iterations (from',PRE_EPOCH_NUM,'because',iteration,'are already done)')
+    print('Start pre-training for',PRE_EPOCH_NUM-pre_iteration,'further iterations (from',PRE_EPOCH_NUM,'because',pre_iteration,'are already done)')
     log.write('pre-training...\n')
-    for epoch in range(PRE_EPOCH_NUM-iteration-1):
-        print('pre-train epoch:', iteration+epoch+1)
+    for epoch in range(PRE_EPOCH_NUM-pre_iteration):
+        print('pre-train epoch:', pre_iteration+epoch+1)
         loss = pre_train_epoch(sess, generator, gen_data_loader, saver)
         if epoch % 5 == 0:
             generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
             likelihood_data_loader.create_batches(eval_file)
             test_loss = target_loss(sess, target_lstm, likelihood_data_loader) 
-            print('pre-train epoch ', iteration+epoch+1, 'test_loss ', test_loss)
+            print('pre-train epoch ', pre_iteration+epoch+1, 'test_loss ', test_loss)
             buffer = str(epoch) + ' ' + str(test_loss) + '\n'
             log.write(buffer)
         saver.save(sess, "./pretrain.ckpt")
-        write_iteration(iteration+epoch)
+        pretrainiters = pre_iteration+epoch+1
+        write_iteration(pretrainiters,"Preprocess-Iteration")
 
     generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
     likelihood_data_loader.create_batches(eval_file)
@@ -242,10 +245,10 @@ def main():
     likelihood_data_loader.create_batches(eval_file)
     significance_test(sess, target_lstm, likelihood_data_loader, 'significance/supervise.txt')
 
-    print('Start training discriminator...(for',dis_alter_epoch,'epochs)')
-    for i in range(dis_alter_epoch):
+    print('Start training discriminator for',dis_alter_epoch-dis_iteration,'further iterations (from',dis_alter_epoch,'because',dis_iteration,'are already done)')
+    for i in range(dis_alter_epoch-dis_iteration):
         generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
-        print("epoch",i+1,"from",dis_alter_epoch)
+        print("epoch",i+1+dis_iteration,"from",dis_alter_epoch)
         #  train discriminator
         dis_x_train, dis_y_train = dis_data_loader.load_train_data(positive_file, negative_file)
         
@@ -262,12 +265,13 @@ def main():
                     cnn.input_x: x_batch,
                     cnn.input_y: y_batch,
                     cnn.dropout_keep_prob: dis_dropout_keep_prob
-                    #TODO: Der Iteration-zähler vom preprocessing braucht nen anderen Namen, sodass ersichtlich wird dass das für den preprocessor ist...
-                    #und dafür muss der hier nen zweiten Zähler haben, für die dis_batches hier, und das hier auch mit saver speichern
                 }
                 _, step = sess.run([dis_train_op, dis_global_step], feed)
             except ValueError:
                 pass
+        saver.save(sess, "./pretrain.ckpt")
+        write_iteration(pretrainiters,"Preprocess-Iteration")
+        write_iteration(dis_iteration+i+1,"Discriminator-Iteration")
 
     rollout = ROLLOUT(generator, 0.8)
 

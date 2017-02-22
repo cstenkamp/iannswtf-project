@@ -1,3 +1,4 @@
 model_checkpoint_path: "pretrain.ckpt"
 all_model_checkpoint_paths: "pretrain.ckpt"
-#Iteration: "47"
+#Discriminator-Iteration: "2"
+#Preprocess-Iteration: "2"
