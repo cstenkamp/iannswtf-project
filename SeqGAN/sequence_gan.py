@@ -242,10 +242,10 @@ def main():
     likelihood_data_loader.create_batches(eval_file)
     significance_test(sess, target_lstm, likelihood_data_loader, 'significance/supervise.txt')
 
-    print('Start training discriminator...')
-    for _ in range(dis_alter_epoch):
+    print('Start training discriminator...(for',dis_alter_epoch,'epochs)')
+    for i in range(dis_alter_epoch):
         generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
-
+        print("epoch",i+1,"from",dis_alter_epoch)
         #  train discriminator
         dis_x_train, dis_y_train = dis_data_loader.load_train_data(positive_file, negative_file)
         
@@ -262,6 +262,8 @@ def main():
                     cnn.input_x: x_batch,
                     cnn.input_y: y_batch,
                     cnn.dropout_keep_prob: dis_dropout_keep_prob
+                    #TODO: Der Iteration-zähler vom preprocessing braucht nen anderen Namen, sodass ersichtlich wird dass das für den preprocessor ist...
+                    #und dafür muss der hier nen zweiten Zähler haben, für die dis_batches hier, und das hier auch mit saver speichern
                 }
                 _, step = sess.run([dis_train_op, dis_global_step], feed)
             except ValueError:
