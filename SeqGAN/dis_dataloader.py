@@ -52,6 +52,7 @@ class Dis_dataloader():
         """
         # Load and preprocess data
         sentences, labels = self.load_data_and_labels(positive_file, negative_file)
+        
         shuffle_indices = np.random.permutation(np.arange(len(labels)))
         x_shuffled = sentences[shuffle_indices]
         y_shuffled = labels[shuffle_indices]

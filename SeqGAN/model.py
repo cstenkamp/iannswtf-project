@@ -132,7 +132,6 @@ class LSTM(object):
         outputs = session.run([self.pretrain_updates, self.pretrain_loss, self.g_predictions],
                               feed_dict={self.x: x})
         
-        saver.save(session, "pretrain")
         return outputs
 
     def init_matrix(self, shape):

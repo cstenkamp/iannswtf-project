@@ -18,7 +18,7 @@ HIDDEN_DIM = 32
 SEQ_LENGTH = 20
 START_TOKEN = 0
 
-PRE_EPOCH_NUM = 80 #240
+PRE_EPOCH_NUM = 48 #240
 TRAIN_ITER = 1  # generator
 SEED = 88
 BATCH_SIZE = 64
@@ -172,6 +172,7 @@ def main():
         target_params = pickle.load(input, encoding='latin1') 
     target_lstm = TARGET_LSTM(vocab_size, 64, 32, 32, 20, 0, target_params)
 
+    
     with tf.variable_scope('discriminator'):
         cnn = TextCNN(
             sequence_length=20,
@@ -195,12 +196,9 @@ def main():
     config.gpu_options.allow_growth = True
     sess = tf.Session(config=config)
 
-    
-    
-    generate_samples(sess, target_lstm, 64, 10000, positive_file)
-    gen_data_loader.create_batches(positive_file)
 
-    saver = tf.train.Saver({"pretrain_updates": generator.pretrain_updates, "pretrain_loss": generator.pretrain_loss, "g_predictions": generator.g_predictions})    
+    #saver = tf.train.Saver({"pretrain_updates": generator.pretrain_updates, "pretrain_loss": generator.pretrain_loss, "g_predictions": generator.g_predictions})    
+    saver = tf.train.Saver()
     ckpt = tf.train.get_checkpoint_state("./") 
     if ckpt and ckpt.model_checkpoint_path:
         print("Reading preprocessing-model parameters from %s" % ckpt.model_checkpoint_path)
@@ -213,22 +211,26 @@ def main():
         init = tf.global_variables_initializer()
         init.run(session = sess)
         iteration = 0
-  
+
+    generate_samples(sess, target_lstm, 64, 10000, positive_file)
+    gen_data_loader.create_batches(positive_file)
 
     log = open('log/experiment-log.txt', 'w')
     #  pre-train generator
-    print('Start pre-training...')
+    print('Start pre-training for',PRE_EPOCH_NUM-iteration,'further iterations (from',PRE_EPOCH_NUM,'because',iteration,'are already done)')
     log.write('pre-training...\n')
-    for epoch in range(PRE_EPOCH_NUM):
-        print('pre-train epoch:', epoch)
+    for epoch in range(PRE_EPOCH_NUM-iteration-1):
+        print('pre-train epoch:', iteration+epoch+1)
         loss = pre_train_epoch(sess, generator, gen_data_loader, saver)
         if epoch % 5 == 0:
             generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
             likelihood_data_loader.create_batches(eval_file)
-            test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
-            print('pre-train epoch ', epoch, 'test_loss ', test_loss)
+            test_loss = target_loss(sess, target_lstm, likelihood_data_loader) 
+            print('pre-train epoch ', iteration+epoch+1, 'test_loss ', test_loss)
             buffer = str(epoch) + ' ' + str(test_loss) + '\n'
             log.write(buffer)
+        saver.save(sess, "./pretrain.ckpt")
+        write_iteration(iteration+epoch)
 
     generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
     likelihood_data_loader.create_batches(eval_file)
@@ -246,8 +248,11 @@ def main():
 
         #  train discriminator
         dis_x_train, dis_y_train = dis_data_loader.load_train_data(positive_file, negative_file)
-        dis_batches = dis_data_loader.batch_iter(
-            zip(dis_x_train, dis_y_train), dis_batch_size, dis_num_epochs
+        
+        zippedlists = list(zip(dis_x_train, dis_y_train))
+        zipped2 = zippedlists[:] #stackoverflow the zip functiohn in python 3
+        zippedlists = list(zipped2)
+        dis_batches = dis_data_loader.batch_iter(zippedlists, dis_batch_size, dis_num_epochs
         )
 
         for batch in dis_batches:
@@ -296,7 +301,10 @@ def main():
             generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
 
             dis_x_train, dis_y_train = dis_data_loader.load_train_data(positive_file, negative_file)
-            dis_batches = dis_data_loader.batch_iter(zip(dis_x_train, dis_y_train), dis_batch_size, 3)
+            zippedlists = list(zip(dis_x_train, dis_y_train))
+            zipped2 = zippedlists[:] #stackoverflow the zip functiohn in python 3
+            zippedlists = list(zipped2)
+            dis_batches = dis_data_loader.batch_iter(zippedlists, dis_batch_size, 3)
 
             for batch in dis_batches:
                 try:
