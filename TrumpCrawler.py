@@ -55,7 +55,7 @@ def get_all_tweets(screen_name):
 
     
     #close the file
-    print("Tweets saved to"+ screen_name +'.txt')
+    print("Tweets saved to "+ screen_name +'.txt')
     file.close()
 
 if __name__ == '__main__':
