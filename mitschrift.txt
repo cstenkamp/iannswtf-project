@@ -22,3 +22,11 @@ GENERELL
 -quellen mitscheiben
 -mitschreiben was suboptimal ist (auch was gut, word2vec selbstcoden)
 -gucken ob der beim twitter-set "4" und "for" nah beieinander macht :o
+-word2vec anschließend nen bisschen clustern? sodass colloquial-synonyme einfacher zu erkennen sind?
+-wie gehen wir mit @mention's um?
+-nen super-expressive-run-modus, wo der schön die kurve mit testing und training loss anzeigt!
+
+SEHR AKTUELL
+-den checkpoint-path in eine config-variable
+-die file_functions-create_checkpoint-function klappt bei trumpdata noch nicht
+-den langen expressive mode (siehe erwartungshorizont)

@@ -24,21 +24,45 @@ from scipy import stats
 import file_functions
 
 w2vsamplecount = 0
+is_for_trump = True
 
  
-class config(object):
+class Config_moviedat(object):
     TRAINNAME = "train"
     TESTNAME = "test"
     VALIDATIONNAME = "validation"
-    
+    setpath = "./sets/"
     w2v_usesets = [True, True, True]
+    use_w2v = False
     embedding_size = 128
-    num_steps_w2v = 200001 #198000 ist einmal durchs ganze dataset (falls nach word2vec gekürzt)
-    
-    use_w2v = True
+    num_steps_w2v = 200001 #198000 ist einmal durchs ganze movieratings-dataset (falls nach word2vec gekürzt)
+    maxlen_percentage = .75
+    minlen_abs = 40
     TRAIN_STEPS = 6
     batch_size = 32
+    firstrun = False
     
+class Config_trumpdat(object):
+    TRAINNAME = "train"
+    TESTNAME = "test"
+    VALIDATIONNAME = "validation"
+    setpath = "./trumpsets/"
+    w2v_usesets = [True, True, True]
+    use_w2v = False
+    embedding_size = 128
+    num_steps_w2v = 100001 
+    maxlen_percentage = 1
+    minlen_abs = 20
+    TRAIN_STEPS = 6
+    batch_size = 32
+    expressive_run = True
+    
+    
+if is_for_trump:
+    config = Config_trumpdat()    
+else:
+    config = Config_moviedat()    
+
 
 
 class moviedata(object):
@@ -220,7 +244,7 @@ def make_dataset(whichsets = [True, True, True]):
     #first we look how often each word occurs, to delete single occurences.
     for currset in range(3):
         if whichsets[currset]:
-            with open("sets/"+datasets[currset]+".txt", encoding="utf8") as infile:
+            with open(config.setpath+datasets[currset]+".txt", encoding="utf8") as infile:
                 string = []
                 for line in infile: 
                     words = line.split()
@@ -242,7 +266,7 @@ def make_dataset(whichsets = [True, True, True]):
     #now we make a dictionary, mapping words to their indices
     for currset in range(3):
         if whichsets[currset]:    
-            with open("sets/"+datasets[currset]+".txt", encoding="utf8") as infile:
+            with open(config.setpath+datasets[currset]+".txt", encoding="utf8") as infile:
                 for line in infile:
                     words = line.split()
                     for word in words:
@@ -262,7 +286,7 @@ def make_dataset(whichsets = [True, True, True]):
     ratings = [[],[],[]]
     for currset in range(3):
         if whichsets[currset]:        
-            with open("sets/"+datasets[currset]+".txt", encoding="utf8") as infile:        
+            with open(config.setpath+datasets[currset]+".txt", encoding="utf8") as infile:        
                 for line in infile:
                     words = line.split()
                     currentrating = []
@@ -275,7 +299,7 @@ def make_dataset(whichsets = [True, True, True]):
     ratetargets = [[],[],[]]
     for currset in range(3):
         if whichsets[currset]:     
-            with open("sets/"+datasets[currset]+"-target.txt", encoding="utf8") as infile:
+            with open(config.setpath+datasets[currset]+"-target.txt", encoding="utf8") as infile:
                 for line in infile:
                     if int(line) < 5:
                         ratetargets[currset].append(0)
@@ -556,7 +580,7 @@ def load_moviedata(include_w2v, include_tsne):
 moviedat = load_moviedata(config.use_w2v, False)
 
 
-print("Shortening to", moviedat.shortendata([True, True, True], .75, 40, False))
+print("Shortening to", moviedat.shortendata([True, True, True], config.maxlen_percentage, config.minlen_abs, config.expressive_run))
 #print("Max-Len:",moviedat.maxlenstring)
 X_train = np.asarray(moviedat.trainreviews)
 y_train = to_one_hot(np.asarray(moviedat.traintargets))
