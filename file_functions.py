@@ -11,6 +11,7 @@ which checkpoint to use. For that, there is the function prepare_checkpoints.
 """
 import shutil
 from pathlib import Path
+import os
 
 
 def read_iteration(string="Iteration", path="./"):
@@ -97,9 +98,12 @@ def prepare_checkpoint(usew2v, path="./"):
             if Path(path+".checkpointbkp_withwordvecs").is_file():
                 shutil.copy(path+".checkpointbkp_withwordvecs",path+"checkpoint")
             else:
-                print("Couldn't prepare checkpoint!")
+                print("No previous checkpoint found, deleting the old one!")
+                os.remove(path+"checkpoint")
+                
         else:
             if Path(path+".checkpointbkp_nowordvecs").is_file():
                 shutil.copy(path+".checkpointbkp_nowordvecs",path+"checkpoint")
             else:
-                print("Couldn't prepare checkpoint!")
+                print("No previous checkpoint found, deleting the old one!")
+                os.remove(path+"checkpoint")

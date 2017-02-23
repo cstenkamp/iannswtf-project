@@ -58,7 +58,7 @@ class Config_trumpdat(object):
     VALIDATIONNAME = "validation"
     setpath = "./trumpsets/"
     w2v_usesets = [True, True, True]
-    use_w2v = False
+    use_w2v = True
     embedding_size = 128
     num_steps_w2v = 100001 
     maxlen_percentage = 1
@@ -601,6 +601,7 @@ def load_moviedata(include_w2v, include_tsne):
             moviedat.printcloseones("his")
             moviedat.printcloseones("bad")
             moviedat.printcloseones("three")
+            moviedat.printcloseones("4")  #kann mir gut vorstellen dass bei twitterdaten "4" und "for" nah sind.
 
             if include_tsne: plot_tsne(moviedat.wordvecs, moviedat)
             
@@ -727,7 +728,7 @@ class LSTM(object):
             #TODO: beim SaveALot-Modus sollte er das jetzt re-namen in "_iterationx"
             
             time.sleep(0.1)
-            file_functions.write_iteration(iteration+epoch+1, config.checkpointpath)
+            file_functions.write_iteration(number = iteration+epoch+1, path=config.checkpointpath)
         
         return accuracy
     
@@ -758,7 +759,7 @@ def train_and_test(amount_iterations):
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                iteration = file_functions.read_iteration(config.checkpointpath)
+                iteration = file_functions.read_iteration(path = config.checkpointpath)
                 print(iteration,"iterations ran already.")
             else:
                 print("Created model with fresh parameters.")
@@ -825,7 +826,7 @@ def validate():
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                print(file_functions.read_iteration(config.checkpointpath),"iterations ran already.")
+                print(file_functions.read_iteration(path = config.checkpointpath),"iterations ran already.")
             else:
                 print("uhm, without a model it doesn't work") #TODO: anders
                 exit()
@@ -871,7 +872,7 @@ def test_one_sample(string, doprint=False):
             whatis = stats.mode(np.argmax(result[0], 1))[0][0]
 
             if doprint: 
-                if config.is_for_trump: 
+                if not config.is_for_trump: 
                     print("-> Possible Rating: good movie" if whatis != 0 else "-> Possible Rating: bad movie")
                 else:
                     print("-> Possible politial view: Trump-ee" if whatis != 0 else "-> Possible political view: non-trump-ee")
