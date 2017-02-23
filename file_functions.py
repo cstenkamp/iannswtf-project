@@ -85,21 +85,21 @@ def prepare_checkpoint(usew2v, path="./"):
         
     #backup the current checkpoint...
     if check_which(path) == 1:
-        shutil.copy(path+"checkpoint",path+"checkpointbkp_withwordvecs")
+        shutil.copy(path+"checkpoint",path+".checkpointbkp_withwordvecs")
     elif check_which(path) == 2:
-        shutil.copy(path+"checkpoint",path+"checkpointbkp_nowordvecs")
+        shutil.copy(path+"checkpoint",path+".checkpointbkp_nowordvecs")
     else:
         return
     
     #if the current checkpoint is not appropriate for the use_w2v-setting, load a backup if available.
     if not ((check_which(path) == 1 and usew2v) or (check_which(path) == 2 and not usew2v)): #only need to do this if we switched from not-using to using or vice versa
         if usew2v:
-            if Path(path+"checkpointbkp_withwordvecs").is_file():
-                shutil.copy(path+"checkpointbkp_withwordvecs",path+"checkpoint")
+            if Path(path+".checkpointbkp_withwordvecs").is_file():
+                shutil.copy(path+".checkpointbkp_withwordvecs",path+"checkpoint")
             else:
                 print("Couldn't prepare checkpoint!")
         else:
-            if Path(path+"checkpointbkp_nowordvecs").is_file():
-                shutil.copy(path+"checkpointbkp_nowordvecs",path+"checkpoint")
+            if Path(path+".checkpointbkp_nowordvecs").is_file():
+                shutil.copy(path+".checkpointbkp_nowordvecs",path+"checkpoint")
             else:
                 print("Couldn't prepare checkpoint!")

@@ -42,8 +42,8 @@ def preparestring(string):
     str = str.replace(":", " <colon> ")
     str = str.replace("(", " <openBracket> ")
     str = str.replace(")", " <closeBracket> ")
-    str = str.replace(".", " <dot> ")
     str = str.replace("...", " <dots> ")
+    str = str.replace(".", " <dot> ")
     str = str.replace(";", " <semicolon> ")
     str = str.replace('"', " <quote> ")
     str = str.replace("?", " <question> ")
@@ -54,6 +54,7 @@ def preparestring(string):
     while str.find("  ") > 0: str = str.replace("  "," ")
     if str.endswith(' '): str = str[:-1]
     return str
+
 
 def correct_grammar(string):
     str = copy.deepcopy(string)
@@ -97,7 +98,7 @@ def create_from_johannes():
                     break
                 counter += 1
         counter = 0
-    if not os.intopath.exists(intopath):
+    if not os.path.exists(intopath):
         os.makedirs(intopath)        
     thefiles = [i+".txt" for i in files] + [i+target_appendix+".txt" for i in files]
     i = 0

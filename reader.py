@@ -63,7 +63,7 @@ class Config_trumpdat(object):
     num_steps_w2v = 100001 
     maxlen_percentage = 1
     minlen_abs = 10
-    TRAIN_STEPS = 6
+    TRAIN_STEPS = 12
     batch_size = 32
     expressive_run = False
     checkpointpath = "./trumpdatweights/"
@@ -227,8 +227,8 @@ class moviedata(object):
         str = str.replace(" <colon>", ":")
         str = str.replace(" <openBracket>", "(")
         str = str.replace(" <closeBracket>", ")")
-        str = str.replace(" <dot>", ".")
         str = str.replace(" <dots>", "...")
+        str = str.replace(" <dot>", ".")
         str = str.replace(" <semicolon>", ";")
         str = str.replace("<quote>", '"')
         str = str.replace(" <question>", "?")
@@ -249,8 +249,8 @@ def preparestring(string):
     str = str.replace(":", " <colon> ")
     str = str.replace("(", " <openBracket> ")
     str = str.replace(")", " <closeBracket> ")
-    str = str.replace(".", " <dot> ")
     str = str.replace("...", " <dots> ")
+    str = str.replace(".", " <dot> ")
     str = str.replace(";", " <semicolon> ")
     str = str.replace('"', " <quote> ")
     str = str.replace("?", " <question> ")
@@ -626,9 +626,10 @@ y_validat = to_one_hot(np.asarray(moviedat.validtargets))
 
 percentage = sum([item[0] for item in y_train])/len([item[0] for item in y_train])*100
 print(round(percentage),"% of training-data is positive")
+assert 20 < percentage < 80
 
 print("Starting the actual LSTM...")
-file_functions.prepare_checkpoint(config.use_w2v)
+file_functions.prepare_checkpoint(config.use_w2v,config.checkpointpath)
                  
 
 #=============================================================================
@@ -726,7 +727,7 @@ class LSTM(object):
             #TODO: beim SaveALot-Modus sollte er das jetzt re-namen in "_iterationx"
             
             time.sleep(0.1)
-            file_functions.write_iteration(iteration+epoch+1)
+            file_functions.write_iteration(iteration+epoch+1, config.checkpointpath)
         
         return accuracy
     
@@ -757,7 +758,7 @@ def train_and_test(amount_iterations):
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                iteration = file_functions.read_iteration()
+                iteration = file_functions.read_iteration(config.checkpointpath)
                 print(iteration,"iterations ran already.")
             else:
                 print("Created model with fresh parameters.")
@@ -824,7 +825,7 @@ def validate():
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                print(file_functions.read_iteration(),"iterations ran already.")
+                print(file_functions.read_iteration(config.checkpointpath),"iterations ran already.")
             else:
                 print("uhm, without a model it doesn't work") #TODO: anders
                 exit()
@@ -845,7 +846,7 @@ def validate():
             
 
 def test_one_sample(string, doprint=False):
-    if doprint: print("Possible Review:",string)
+    if doprint: print("Possible Text:",string)
     dataset = [moviedat.lookup[i] if i in moviedat.lookup.keys() else moviedat.lookup["<UNK>"] for i in preparestring(string).split(" ")] #oh damn, für solche einzeiler liebe ich python.
     dataset = dataset + [0]*(moviedat.maxlenstring-len(dataset))
     dataset = [dataset]*config.batch_size 
@@ -869,7 +870,11 @@ def test_one_sample(string, doprint=False):
 
             whatis = stats.mode(np.argmax(result[0], 1))[0][0]
 
-            if doprint: print("-> Possible Rating: good movie" if whatis != 0 else "-> Possible Rating: bad movie")
+            if doprint: 
+                if config.is_for_trump: 
+                    print("-> Possible Rating: good movie" if whatis != 0 else "-> Possible Rating: bad movie")
+                else:
+                    print("-> Possible politial view: Trump-ee" if whatis != 0 else "-> Possible political view: non-trump-ee")
             
             return (whatis == 1)
 
