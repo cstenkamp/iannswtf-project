@@ -12,7 +12,8 @@ positive = "Filtered Tweets positive.txt"
 negative = "Filtered Tweets negative.txt"
 amount_train = 30000
 amount_test = amount_valid = amount_train//4
-path = "./trumpsets/"
+frompath = "./Johannes/"
+intopath = "./trumpsets/"
 files = ["train","test","validation"]
 target_appendix = "-target"
 
@@ -61,6 +62,7 @@ def correct_grammar(string):
     str = str.replace("w/", "with")
     str = str.replace("'s", " is")
     str = str.replace("'m", " am")
+    str = str.replace("n't", " not")
     return str
     
 
@@ -73,34 +75,34 @@ def preprocess(text):
 
 
 def create_from_johannes():
-    assert line_count(positive) >= amount_test + amount_valid + amount_train
-    assert line_count(negative) >= amount_test + amount_valid + amount_train                     
+    assert line_count(frompath+positive) >= amount_test + amount_valid + amount_train
+    assert line_count(frompath+negative) >= amount_test + amount_valid + amount_train                     
     counter = 0
     sets = [[],[],[]]
     target = [[],[],[]]
-    for openfile in [positive, negative]:
+    for openfile in [frompath+positive, frompath+negative]:
         with open("./"+openfile, encoding="utf8") as infile:
             for line in infile: 
                 currtweet = preprocess(line)
                 if counter < amount_train:
                     sets[0].append(currtweet)
-                    target[0].append("1" if openfile == positive else "0")
+                    target[0].append("1" if openfile == frompath+positive else "0")
                 elif counter < amount_train + amount_test:
                     sets[1].append(currtweet)
-                    target[1].append("1" if openfile == positive else "0")
+                    target[1].append("1" if openfile == frompath+positive else "0")
                 elif counter < amount_train + amount_test + amount_valid:
                     sets[2].append(currtweet)
-                    target[2].append("1" if openfile == positive else "0")
+                    target[2].append("1" if openfile == frompath+positive else "0")
                 else:
                     break
                 counter += 1
         counter = 0
-    if not os.path.exists(path):
-        os.makedirs(path)        
+    if not os.intopath.exists(intopath):
+        os.makedirs(intopath)        
     thefiles = [i+".txt" for i in files] + [i+target_appendix+".txt" for i in files]
     i = 0
     for savefile in thefiles:
-        infile = open(path+savefile, "w")
+        infile = open(intopath+savefile, "w")
         if i < 3:
             infile.write("".join(sets[i]))
         else:

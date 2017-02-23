@@ -21,13 +21,17 @@ import matplotlib.pyplot as plt
 import copy
 import time
 from scipy import stats
+import os
+#====own functions====
 import file_functions
+
 
 w2vsamplecount = 0
 is_for_trump = True
 
  
 class Config_moviedat(object):
+    is_for_trump = False
     TRAINNAME = "train"
     TESTNAME = "test"
     VALIDATIONNAME = "validation"
@@ -40,9 +44,15 @@ class Config_moviedat(object):
     minlen_abs = 40
     TRAIN_STEPS = 6
     batch_size = 32
-    firstrun = False
+    expressive_run = False
+    checkpointpath = "./moviedatweights/"    
+    def __init__(self):
+        if not os.path.exists(self.checkpointpath):
+            os.makedirs(self.checkpointpath)         
+    
     
 class Config_trumpdat(object):
+    is_for_trump = True
     TRAINNAME = "train"
     TESTNAME = "test"
     VALIDATIONNAME = "validation"
@@ -52,10 +62,14 @@ class Config_trumpdat(object):
     embedding_size = 128
     num_steps_w2v = 100001 
     maxlen_percentage = 1
-    minlen_abs = 20
+    minlen_abs = 10
     TRAIN_STEPS = 6
     batch_size = 32
-    expressive_run = True
+    expressive_run = False
+    checkpointpath = "./trumpdatweights/"
+    def __init__(self):
+        if not os.path.exists(self.checkpointpath):
+            os.makedirs(self.checkpointpath)            
     
     
 if is_for_trump:
@@ -82,7 +96,7 @@ class moviedata(object):
         self.wordvecs = wordvecs
 
 
-    def showstringlenghts(self, whichones, percentage, printstuff):
+    def showstringlenghts(self, whichones, percentage, printstuff): #if percentage is 1, its the maxlen of the entire dataset
         lens = []
         if whichones[0]:
             for i in self.trainreviews:
@@ -102,7 +116,8 @@ class moviedata(object):
         lens.sort()
         return lens[(round(len(lens)*percentage))-1]
     
-    #TODO: BUG: Das shortendata macht halbe wörter...! Es müsste nach worten brechen! :/
+    
+    #TODO: moviedat vielleicht nicht mittem im satz brechen lassen?
     def shortendata(self, whichones, percentage, lohnenderstring, printstuff):
         maxlen = self.showstringlenghts(whichones,percentage,printstuff) #75% of data has a maxlength of 312, soo...
         if printstuff: 
@@ -118,7 +133,11 @@ class moviedata(object):
                         self.trainreviews.append(self.trainreviews[i][maxlen+1:])
                         self.traintargets.append(self.traintargets[i])
                     self.trainreviews[i] = self.trainreviews[i][:maxlen]
-                i = i+1
+                if len(self.trainreviews[i]) < lohnenderstring:
+                    del(self.trainreviews[i])
+                    del(self.traintargets[i])
+                else: #wichtig! wenn er es löscht, hat das danach jetzt den bereits genutzten index -> don't increase!
+                    i = i+1
                 if i >= len(self.trainreviews):
                     break
         if whichones[1]:     
@@ -129,7 +148,11 @@ class moviedata(object):
                         self.testreviews.append(self.testreviews[i][maxlen+1:])
                         self.testtargets.append(self.testtargets[i])
                     self.testreviews[i] = self.testreviews[i][:maxlen]
-                i = i+1
+                if len(self.testreviews[i]) < lohnenderstring:
+                    del(self.testreviews[i])
+                    del(self.testtargets[i])
+                else: #wichtig! wenn er es löscht, hat das danach jetzt den bereits genutzten index -> don't increase!                    
+                    i = i+1
                 if i >= len(self.testreviews):
                     break  
         if whichones[2]:     
@@ -140,7 +163,11 @@ class moviedata(object):
                         self.validreviews.append(self.validreviews[i][maxlen+1:])
                         self.validtargets.append(self.validtargets[i])
                     self.validreviews[i] = self.validreviews[i][:maxlen]
-                i = i+1
+                if len(self.validreviews[i]) < lohnenderstring:
+                    del(self.validreviews[i])
+                    del(self.validtargets[i])
+                else: #wichtig! wenn er es löscht, hat das danach jetzt den bereits genutzten index -> don't increase!
+                    i = i+1
                 if i >= len(self.validreviews):
                     break
         if printstuff: 
@@ -167,7 +194,7 @@ class moviedata(object):
         
         if printstuff: print(self.showstringlenghts(whichones,percentage,True))   
         try:
-            _ = self.lookup["<END>"]
+            self.lookup["<END>"]
         except KeyError:
             self.lookup["<END>"] = self.ohnum
             self.uplook[self.ohnum] = "<END>"
@@ -237,6 +264,7 @@ def preparestring(string):
             
 ## first we create, save & load the words as indices.
 def make_dataset(whichsets = [True, True, True]):
+    assert os.path.exists(config.setpath)
     allwords = {}
     wordcount = 1
     datasets = [config.TRAINNAME, config.TESTNAME, config.VALIDATIONNAME]
@@ -301,10 +329,13 @@ def make_dataset(whichsets = [True, True, True]):
         if whichsets[currset]:     
             with open(config.setpath+datasets[currset]+"-target.txt", encoding="utf8") as infile:
                 for line in infile:
-                    if int(line) < 5:
-                        ratetargets[currset].append(0)
+                    if config.is_for_trump:
+                        ratetargets[currset].append(int(line))
                     else:
-                        ratetargets[currset].append(1)
+                        if int(line) < 5:
+                            ratetargets[currset].append(0)
+                        else:
+                            ratetargets[currset].append(1)
             
     #we made a dataset! :)
     moviedat = moviedata(ratings[0], ratetargets[0],
@@ -533,14 +564,14 @@ print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
 def load_moviedata(include_w2v, include_tsne):    
     print('Loading data...')
     
-    if Path("./ratings_mit_wordvecs.pkl").is_file():
+    if Path(config.checkpointpath+"ratings_mit_wordvecs.pkl").is_file():
         print("Dataset including word2vec found!")
-        with open('ratings_mit_wordvecs.pkl', 'rb') as input:
+        with open(config.checkpointpath+'ratings_mit_wordvecs.pkl', 'rb') as input:
             moviedat = pickle.load(input)       
     else:
-        if Path("./ratings_ohne_wordvecs.pkl").is_file():
+        if Path(config.checkpointpath+"ratings_ohne_wordvecs.pkl").is_file():
             print("dataset without word2vec found.")
-            with open('ratings_ohne_wordvecs.pkl', 'rb') as input:
+            with open(config.checkpointpath+'ratings_ohne_wordvecs.pkl', 'rb') as input:
                 moviedat = pickle.load(input)  
             print(moviedat.ohnum," different words.")
         else:
@@ -551,7 +582,7 @@ def load_moviedata(include_w2v, include_tsne):
             rand = round(random.uniform(0,len(moviedat.traintargets)))
             print('Sample review', moviedat.trainreviews[rand][0:100], [moviedat.uplook[i] for i in moviedat.trainreviews[rand][0:100]])
             
-            with open('ratings_ohne_wordvecs.pkl', 'wb') as output:
+            with open(config.checkpointpath+'ratings_ohne_wordvecs.pkl', 'wb') as output:
                 pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)
                 print('Saved the dataset as Pickle-File')
                 
@@ -560,7 +591,7 @@ def load_moviedata(include_w2v, include_tsne):
             print("Starting word2vec...")
             
             moviedat.add_wordvectors(perform_word2vec(moviedat))
-            with open('ratings_mit_wordvecs.pkl', 'wb') as output:
+            with open(config.checkpointpath+'ratings_mit_wordvecs.pkl', 'wb') as output:
                 pickle.dump(moviedat, output, pickle.HIGHEST_PROTOCOL)
             print("Saved word2vec-Results.")
             print("Word2vec ran through",w2vsamplecount,"different reviews.")
@@ -579,8 +610,9 @@ def load_moviedata(include_w2v, include_tsne):
 
 moviedat = load_moviedata(config.use_w2v, False)
 
-
-print("Shortening to", moviedat.shortendata([True, True, True], config.maxlen_percentage, config.minlen_abs, config.expressive_run))
+print("So far, there are",len(moviedat.trainreviews),"strings...")
+print("Shortening from max.",moviedat.showstringlenghts([True, True, True], 1, False),"words to", moviedat.shortendata([True, True, True], config.maxlen_percentage, config.minlen_abs, config.expressive_run),"words (min",str(config.minlen_abs)+")")
+print("...afterwards, there are",len(moviedat.trainreviews),"strings.")
 #print("Max-Len:",moviedat.maxlenstring)
 X_train = np.asarray(moviedat.trainreviews)
 y_train = to_one_hot(np.asarray(moviedat.traintargets))
@@ -686,9 +718,9 @@ class LSTM(object):
         
         if is_training:
             if config.use_w2v:
-                savename = "./movierateweights_wordvecs.ckpt"
+                savename = config.checkpointpath+"movierateweights_wordvecs.ckpt"
             else:
-                savename = "./movierateweights.ckpt"
+                savename = config.checkpointpath+"movierateweights.ckpt"
                 
             saver.save(session, savename)
             #TODO: beim SaveALot-Modus sollte er das jetzt re-namen in "_iterationx"
@@ -721,7 +753,7 @@ def train_and_test(amount_iterations):
     
             saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
            
-            ckpt = tf.train.get_checkpoint_state("./") 
+            ckpt = tf.train.get_checkpoint_state(config.checkpointpath) 
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
@@ -788,7 +820,7 @@ def validate():
 
             saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
            
-            ckpt = tf.train.get_checkpoint_state("./") #TODO: da unterscheidet er noch nicht zwischen mit und ohne w2v..
+            ckpt = tf.train.get_checkpoint_state(config.checkpointpath) #TODO: da unterscheidet er noch nicht zwischen mit und ohne w2v..
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
@@ -826,7 +858,7 @@ def test_one_sample(string, doprint=False):
     
             saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
            
-            ckpt = tf.train.get_checkpoint_state("./") 
+            ckpt = tf.train.get_checkpoint_state(config.checkpointpath) 
             if ckpt and ckpt.model_checkpoint_path:
                 #print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
@@ -914,8 +946,12 @@ def plot_test_and_train(amount_iterations):
 train_and_test(config.TRAIN_STEPS)
 validate()
 
-test_one_sample("I hated this movie. It sucks. The movie is bad, Worst movie ever. Bad Actors, bad everything.", True)
-test_one_sample("I loved this movie. It is awesome. The movie is good, best movie ever. good Actors, good everything.", True)
+if config.is_for_trump:
+    test_one_sample("I hate immigrants", True)
+    test_one_sample("I hate Trump", True)
+else:
+    test_one_sample("I hated this movie. It sucks. The movie is bad, Worst movie ever. Bad Actors, bad everything.", True)
+    test_one_sample("I loved this movie. It is awesome. The movie is good, best movie ever. good Actors, good everything.", True)
 
 
 print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))

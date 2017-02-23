@@ -25,6 +25,7 @@ GENERELL
 -word2vec anschließend nen bisschen clustern? sodass colloquial-synonyme einfacher zu erkennen sind?
 -wie gehen wir mit @mention's um?
 -nen super-expressive-run-modus, wo der schön die kurve mit testing und training loss anzeigt!
+-vielleicht vielleicht vielleicht usernamen durch nen generelles user-token ersetzen? Oder nach kategorie? Oder 2: retweet, antweet?
 
 SEHR AKTUELL
 -den checkpoint-path in eine config-variable
