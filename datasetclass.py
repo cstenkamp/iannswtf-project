@@ -11,7 +11,7 @@ import os
 import collections
 
 
-class moviedata(object):
+class thedataset(object):
     def __init__(self, trainx, trainy, testx, testy, validx, validy, lookup, uplook, count):
         self.trainreviews = trainx
         self.traintargets = trainy
@@ -49,7 +49,7 @@ class moviedata(object):
         return lens[(round(len(lens)*percentage))-1]
     
     
-    #TODO: moviedat vielleicht nicht mittem im satz brechen lassen?
+    #TODO: vielleicht nicht mittem im satz brechen lassen?
     def shortendata(self, whichones, percentage, lohnenderstring, printstuff, embedding_size):
         maxlen = self.showstringlenghts(whichones,percentage,printstuff) #75% of data has a maxlength of 312, soo...
         if printstuff: 
@@ -261,12 +261,12 @@ def make_dataset(whichsets = [True, True, True], config=None):
                             ratetargets[currset].append(1)
             
     #we made a dataset! :)
-    moviedat = moviedata(ratings[0], ratetargets[0],
+    datset = thedataset(ratings[0], ratetargets[0],
                          ratings[1], ratetargets[1],
                          ratings[2], ratetargets[2],
                          allwords, reverse_dictionary, wordcount)
     
-    return moviedat
+    return datset
 
 
 
