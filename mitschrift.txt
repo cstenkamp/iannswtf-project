@@ -10,10 +10,9 @@ DONE:
 -gucken wie man weights speichert
 
 TODO:
--das shortenstrings zieht noch wörter auseinander!! >.<
--weights NACH JEDER ITERATION speichern und vor allem laden können!
--beim viel-zeit-modus noch ganz viele einzelne weights speichern
--oh, achja, mit pretrained wordvecs klappts noch nicht! 
+-das shortenstrings zieht noch sätze auseinander!! >.<
+-beim viel-zeit-modus noch ganz viele einzelne weights speichern (nach jeder iteration)
+-oh, achja, mit pretrained wordvecs klappts noch nicht (???)
 -dann das generative model.
 
 
@@ -26,8 +25,5 @@ GENERELL
 -wie gehen wir mit @mention's um?
 -nen super-expressive-run-modus, wo der schön die kurve mit testing und training loss anzeigt!
 -vielleicht vielleicht vielleicht usernamen durch nen generelles user-token ersetzen? Oder nach kategorie? Oder 2: retweet, antweet?
-
-SEHR AKTUELL
--den checkpoint-path in eine config-variable
--die file_functions-create_checkpoint-function klappt bei trumpdata noch nicht
 -den langen expressive mode (siehe erwartungshorizont)
+-einen generator schreiben der zufällige strings macht, und das halt als negative input für GAN??

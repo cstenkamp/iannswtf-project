@@ -35,7 +35,7 @@ class Config_moviedat(object):
     TRAINNAME = "train"
     TESTNAME = "test"
     VALIDATIONNAME = "validation"
-    setpath = "./sets/"
+    setpath = "./moviesets/"
     w2v_usesets = [True, True, True]
     use_w2v = False
     embedding_size = 128
@@ -517,7 +517,7 @@ def perform_word2vec(dataset, print_example=False):
 
 # Step 6: Visualize the embeddings.
 def plot_tsne(final_embeddings, dataset):
-    def plot_with_labels(low_dim_embs, labels, filename='tsne.png'):
+    def plot_with_labels(low_dim_embs, labels, filename=config.checkpointpath+'tsne.png'):
         assert low_dim_embs.shape[0] >= len(labels), "More labels than embeddings"
         plt.figure(figsize=(18, 18))  # in inches
         for i, label in enumerate(labels):
@@ -899,7 +899,7 @@ class global_plot:
         plt.plot(x,self.trainvals,'b')
         plt.plot(x,self.testvals,'r')
         plt.pause(0.01)
-        savefig.savefig("figure_dump.png")
+        savefig.savefig(config.checkpointpath+"figure_dump.png")
 
         
 

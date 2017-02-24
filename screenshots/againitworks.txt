@@ -1,0 +1,214 @@
+C:\Users\csten_000\Desktop\MOVIERATINGS>python reader.py
+Timestamp: 2017-02-24 09:51:39
+Loading data...
+No dataset found! Creating new...
+Most common words:
+[('<dot>', 18937), ('the', 8086), ('<colon>', 7207), ('to', 6974), ('<comma>', 6871)]
+12239 different words.
+Sample review [0, 0, 533, 247, 149, 48, 4163, 5, 0, 26, 0, 78] ['xpect', 'xpect', 'how', 'well', 'does', 'it', 'cover', 'the', 'xpect', 'and', 'xpect', '<question>']
+Saved the dataset as Pickle-File
+Starting word2vec...
+E c:\tf_jenkins\home\workspace\release-win\device\cpu\os\windows\tensorflow\core\framework\op_kernel.cc:943] OpKernel ('op: "BestSplits" device_type: "CPU"') for unknown op: BestSplits
+E c:\tf_jenkins\home\workspace\release-win\device\cpu\os\windows\tensorflow\core\framework\op_kernel.cc:943] OpKernel ('op: "CountExtremelyRandomStats" device_type: "CPU"') for unknown op: CountExtremelyRandomStats
+E c:\tf_jenkins\home\workspace\release-win\device\cpu\os\windows\tensorflow\core\framework\op_kernel.cc:943] OpKernel ('op: "FinishedNodes" device_type: "CPU"') for unknown op: FinishedNodes
+E c:\tf_jenkins\home\workspace\release-win\device\cpu\os\windows\tensorflow\core\framework\op_kernel.cc:943] OpKernel ('op: "GrowTree" device_type: "CPU"') for unknown op: GrowTree
+E c:\tf_jenkins\home\workspace\release-win\device\cpu\os\windows\tensorflow\core\framework\op_kernel.cc:943] OpKernel ('op: "ReinterpretStringToFloat" device_type: "CPU"') for unknown op: ReinterpretStringToFloat
+E c:\tf_jenkins\home\workspace\release-win\device\cpu\os\windows\tensorflow\core\framework\op_kernel.cc:943] OpKernel ('op: "SampleInputs" device_type: "CPU"') for unknown op: SampleInputs
+E c:\tf_jenkins\home\workspace\release-win\device\cpu\os\windows\tensorflow\core\framework\op_kernel.cc:943] OpKernel ('op: "ScatterAddNdim" device_type: "CPU"') for unknown op: ScatterAddNdim
+E c:\tf_jenkins\home\workspace\release-win\device\cpu\os\windows\tensorflow\core\framework\op_kernel.cc:943] OpKernel ('op: "TopNInsert" device_type: "CPU"') for unknown op: TopNInsert
+E c:\tf_jenkins\home\workspace\release-win\device\cpu\os\windows\tensorflow\core\framework\op_kernel.cc:943] OpKernel ('op: "TopNRemove" device_type: "CPU"') for unknown op: TopNRemove
+E c:\tf_jenkins\home\workspace\release-win\device\cpu\os\windows\tensorflow\core\framework\op_kernel.cc:943] OpKernel ('op: "TreePredictions" device_type: "CPU"') for unknown op: TreePredictions
+E c:\tf_jenkins\home\workspace\release-win\device\cpu\os\windows\tensorflow\core\framework\op_kernel.cc:943] OpKernel ('op: "UpdateFertileSlots" device_type: "CPU"') for unknown op: UpdateFertileSlots
+Initialized
+Average loss at step  0 :  225.170257568
+Nearest to from: nicotine, italy, sorta, specify, stalk, car, coincidence, @jeridegillain,
+Nearest to for: heavenly, honest, @vulkanapi, acme, french, haiti, lindsay, 1,
+Nearest to went: forgot, troubling, coal, hike, delete, @fo, minecraft, @donswanzey,
+Nearest to hugo: heros, hadn't, he'll, socialismo, vocals, buildings, dvr, mic,
+Nearest to we: market, swing, level, right, complicit, accurate, damaged, @smallarmsuser,
+Nearest to <closeBracket>: brief, @tons4583, listed, spy, @originpc, defend, @commander103, horrific,
+Nearest to enough: nwo, kick, wrecked, @felix_xfatcatx, investigate, pee, prizes, kellyanne,
+Nearest to move: looping, buffs, intelligent, nngo, @cindymunz, @johnkstahlusa, reject, @target,
+Nearest to i: trumppresidency, agree, @icraiglincoln, that'd, loyalists, 47, delay, billion,
+Nearest to convince: flooding, mcdonalds, throwing, basics, garden, convention, san, presentation,
+Nearest to <semicolon>: @stephenlimbaugh, ignoring, i7, survived, anyways, travelling, ra, barely,
+Nearest to conservatives: legally, angela, thx, sox, apartments, hella, improvised, carson,
+Nearest to tell: ceased, @gfesports, violate, opened, vids, dress, gloria, @monkeywithkeys,
+Nearest to way: deception, @baronvongamez, while, @_s1nn3d_, thy, @selenagomez, mexican, keyboard,
+Nearest to unafraid: @bbcbreaking, deporting, balloon, boston, @fox26forlife, reasonstoprotest, 34, unprecedented,
+Nearest to is: commune, 84, connections, @classicfm, acoustic, soros, pres, @c,
+Average loss at step  2000 :  48.4854508438
+Average loss at step  4000 :  10.1419348683
+Average loss at step  6000 :  5.88323813105
+Average loss at step  8000 :  4.81435229146
+Average loss at step  10000 :  4.41237701774
+Average loss at step  12000 :  4.2655191766
+Average loss at step  14000 :  4.13609601796
+Average loss at step  16000 :  4.0239940691
+Average loss at step  18000 :  3.96852093655
+Average loss at step  20000 :  3.94104199302
+Nearest to from: extremist, italy, @nickiminaj, nicotine, knows, somali, at, in,
+Nearest to for: @democrat_4trump, preposterous, via, to, waking, heavenly, with, in,
+Nearest to went: forgot, delete, coal, @fo, troubling, miss, philadelphia, <dot>,
+Nearest to hugo: heros, hadn't, he'll, socialismo, buildings, vocals, @gfesports, mic,
+Nearest to we: they, i, you, swing, blows, complicit, level, @vancejoy,
+Nearest to <closeBracket>: <colon>, <openBracket>, horrific, ahh, studied, xpect, defend, @commander103,
+Nearest to enough: kick, nwo, investigate, wrecked, @felix_xfatcatx, pee, up, prizes,
+Nearest to move: intelligent, @cindymunz, looping, @johnkstahlusa, buffs, scary, nngo, reject,
+Nearest to i: we, they, you, @betsydevos, he, that'd, navy, filibuster,
+Nearest to convince: flooding, grow, basics, san, stock, cair, xpect, throwing,
+Nearest to <semicolon>: musicians, <comma>, modpack, border, @stephenlimbaugh, bottom, @jamesokeefeiii, reached,
+Nearest to conservatives: legally, president, angela, thx, boys, carson, eyes, sort,
+Nearest to tell: dress, violate, ceased, @gfesports, yep, allowing, vids, aware,
+Nearest to way: mexican, while, @baronvongamez, tuning, keyboard, thy, allowed, @_s1nn3d_,
+Nearest to unafraid: boston, @bbcbreaking, deporting, @fox26forlife, reasonstoprotest, 34, balloon, unprecedented,
+Nearest to is: was, meh, has, trusted, isn't, tier, pres, does,
+Average loss at step  22000 :  3.89689476514
+Average loss at step  24000 :  3.87345631492
+Average loss at step  26000 :  3.84047313261
+Average loss at step  28000 :  3.81898709428
+Once more through the entire dataset
+Average loss at step  30000 :  3.76285349989
+Average loss at step  32000 :  3.74276649535
+Average loss at step  34000 :  3.73932124335
+Average loss at step  36000 :  3.71743854272
+Average loss at step  38000 :  3.72019498348
+Average loss at step  40000 :  3.71335346627
+Nearest to from: @nickiminaj, italy, extremist, coincidence, @bigb12323, somali, filed, nicotine,
+Nearest to for: preposterous, waking, paso, cs, via, @democrat_4trump, sniper, heavenly,
+Nearest to went: forgot, delete, <dot>, miss, @fo, troubling, wanted, earned,
+Nearest to hugo: heros, he'll, hadn't, socialismo, vocals, buildings, dvr, @gfesports,
+Nearest to we: they, i, you, blows, swing, @vancejoy, @jjauthor, complicit,
+Nearest to <closeBracket>: <openBracket>, @gumball55668882, @jojoh888, $5, ahh, horrific, whom, studied,
+Nearest to enough: kick, nwo, @felix_xfatcatx, prizes, pee, dipped, investigate, coz,
+Nearest to move: intelligent, looping, nngo, @cindymunz, buffs, scary, @johnkstahlusa, presse@bmw,
+Nearest to i: they, we, @betsydevos, you, navy, he, that'd, z100,
+Nearest to convince: basics, grow, flooding, stock, san, cair, overturn, @sweetatertot2,
+Nearest to <semicolon>: musicians, modpack, writing, creativity, <comma>, bottom, bmw, @stephenlimbaugh,
+Nearest to conservatives: legally, angela, president, boys, bronson, thx, carson, eyes,
+Nearest to tell: dress, violate, let, ceased, allowing, gloria, @gfesports, stevens,
+Nearest to way: mexican, while, tuning, thy, @baronvongamez, @selenagomez, audiobook, outraged,
+Nearest to unafraid: @bbcbreaking, boston, deporting, balloon, @fox26forlife, reasonstoprotest, 34, unprecedented,
+Nearest to is: isn't, was, has, trusted, does, meh, defeated, pres,
+Average loss at step  42000 :  3.70614781344
+Average loss at step  44000 :  3.6926323508
+Average loss at step  46000 :  3.66893907559
+Average loss at step  48000 :  3.65995196712
+Average loss at step  50000 :  3.65710363352
+Average loss at step  52000 :  3.63063102496
+Average loss at step  54000 :  3.63485305703
+Average loss at step  56000 :  3.62683729845
+Once more through the entire dataset
+Average loss at step  58000 :  3.58714487314
+Average loss at step  60000 :  3.59249920082
+Nearest to from: @nickiminaj, italy, classic, filed, somali, ntrumptrain, 80%, coincidence,
+Nearest to for: preposterous, waking, paso, heavenly, genres, cs, french, via,
+Nearest to went: forgot, delete, wanted, @fo, earned, troubling, miss, go,
+Nearest to hugo: heros, he'll, hadn't, socialismo, vocals, buildings, dvr, barbarians,
+Nearest to we: they, i, you, blows, @jjauthor, complicit, @vancejoy, swing,
+Nearest to <closeBracket>: <openBracket>, @gumball55668882, $5, @pnehlen, @sillett_t, @jojoh888, studied, whom,
+Nearest to enough: kick, nwo, pee, prizes, @felix_xfatcatx, er, integration, dipped,
+Nearest to move: intelligent, nngo, looping, presse@bmw, @cindymunz, buffs, threaten, reject,
+Nearest to i: we, they, @betsydevos, he, @spaceghostkeith, you, she, 47,
+Nearest to convince: basics, grow, flooding, stock, cair, overturn, san, poverty,
+Nearest to <semicolon>: musicians, @philharmonie, lag, modpack, creativity, @jeffcoco13, @stephenlimbaugh, <comma>,
+Nearest to conservatives: boys, legally, president, angela, bronson, carson, thx, polish,
+Nearest to tell: let, dress, violate, stevens, allowing, ceased, gloria, ask,
+Nearest to way: mexican, while, tuning, @selenagomez, demanded, audiobook, girl, @ms_erika74,
+Nearest to unafraid: @bbcbreaking, deporting, boston, balloon, @fox26forlife, reasonstoprotest, 34, unprecedented,
+Nearest to is: isn't, was, seems, trusted, does, @themeemstreams, meh, defeated,
+Average loss at step  62000 :  3.57486561966
+Average loss at step  64000 :  3.57604276168
+Average loss at step  66000 :  3.57253014767
+Average loss at step  68000 :  3.56506604803
+Average loss at step  70000 :  3.56023322439
+Average loss at step  72000 :  3.54703253394
+Average loss at step  74000 :  3.54535591364
+Average loss at step  76000 :  3.54777007091
+Average loss at step  78000 :  3.53315740865
+Average loss at step  80000 :  3.54315981328
+Nearest to from: @nickiminaj, italy, @derderderick, classic, somali, ntrumptrain, coincidence, extremist,
+Nearest to for: preposterous, waking, paso, genres, cs, french, pin, sniper,
+Nearest to went: forgot, delete, wanted, earned, @fo, go, <dot>, miss,
+Nearest to hugo: heros, he'll, hadn't, socialismo, vocals, dvr, buildings, barbarians,
+Nearest to we: they, i, you, @vancejoy, @jjauthor, dems, complicit, withdrawal,
+Nearest to <closeBracket>: <openBracket>, @gumball55668882, @sillett_t, $5, @pnehlen, tweeting, @thejameslister, deporting,
+Nearest to enough: kick, nwo, pee, prizes, er, @felix_xfatcatx, integration, dipped,
+Nearest to move: intelligent, nngo, presse@bmw, looping, threaten, @cindymunz, @acmawards, reject,
+Nearest to i: we, they, @betsydevos, you, he, @spaceghostkeith, she, that'd,
+Nearest to convince: basics, grow, overturn, stock, flooding, cair, return, poverty,
+Nearest to <semicolon>: @philharmonie, @jeffcoco13, lag, mug, blames, musicians, protect, @stephenlimbaugh,
+Nearest to conservatives: boys, president, angela, bronson, polish, legally, carson, belong,
+Nearest to tell: let, dress, stevens, violate, allowing, ceased, gloria, hfpa,
+Nearest to way: mexican, demanded, girl, @canonbear, @ms_erika74, nada, @selenagomez, tuning,
+Nearest to unafraid: deporting, @bbcbreaking, boston, balloon, @fox26forlife, reasonstoprotest, 34, lied,
+Nearest to is: isn't, trusted, seems, was, does, 43, dull, hasn't,
+Average loss at step  82000 :  3.5232891506
+Average loss at step  84000 :  3.52397929776
+Once more through the entire dataset
+Average loss at step  86000 :  3.51195442939
+Average loss at step  88000 :  3.47820520103
+Average loss at step  90000 :  3.49050451314
+Average loss at step  92000 :  3.47633531511
+Average loss at step  94000 :  3.48190808332
+Average loss at step  96000 :  3.4797663337
+Average loss at step  98000 :  3.46459624779
+Average loss at step  100000 :  3.46583837622
+Nearest to from: @nickiminaj, classic, @bigb12323, somali, @derderderick, ntrumptrain, filed, @rtoberl,
+Nearest to for: preposterous, waking, paso, @wwwbighag, cs, genres, pin, french,
+Nearest to went: forgot, delete, earned, go, wanted, @fo, spoke, shake,
+Nearest to hugo: heros, he'll, hadn't, socialismo, vocals, dvr, barbarians, buildings,
+Nearest to we: they, i, you, @vancejoy, @jjauthor, blows, dems, printing,
+Nearest to <closeBracket>: <openBracket>, @sillett_t, @gumball55668882, @pnehlen, $5, congress, avg, deporting,
+Nearest to enough: kick, nwo, prizes, pee, er, integration, stoned, youd,
+Nearest to move: intelligent, nngo, presse@bmw, threaten, @acmawards, legalized, looping, comparing,
+Nearest to i: they, we, @betsydevos, you, he, @spaceghostkeith, she, that'd,
+Nearest to convince: basics, grow, overturn, xpect, return, stock, cost, cair,
+Nearest to <semicolon>: @jeffcoco13, protect, blames, @philharmonie, lag, @stephenlimbaugh, mug, @powerhausgaming,
+Nearest to conservatives: boys, president, bronson, angela, polish, carson, belong, @afelixdacosta,
+Nearest to tell: let, stevens, dress, violate, allowing, hfpa, ceased, gloria,
+Nearest to way: demanded, girl, nada, @ms_erika74, mexican, develops, @canonbear, audiobook,
+Nearest to unafraid: deporting, @bbcbreaking, balloon, boston, @fox26forlife, 34, reasonstoprotest, permission,
+Nearest to is: isn't, does, seems, allegations, trusted, hasn't, defeated, was,
+Saved word2vec-Results.
+Word2vec ran through 316457 different reviews.
+Close to ' woman ':  ['colombian', '@marilynkj', 'overseas', '@melaniesgore', 'bitch']
+Close to ' <dot> ':  ['compressors', '@blazephoenix_', 'co', 'service@bmw', '@ericcwhitaker']
+Close to ' movie ':  ['violated', 'medvedev', 'ge', 'battery', 'gun']
+Close to ' his ':  ['@shaunabeebee', 'san', 'trumpstrong', 'ensuring', 'esp']
+Close to ' bad ':  ['continues', 'anniversary', 'george', '$599', '@icraiglincoln']
+Close to ' three ':  ['families', 'searching', 'wizard', 'detail', 'anniversary']
+Close to ' 4 ':  ['forth', '8', 'welcometonewyork', 'chairman', 'tape']
+Data loaded.
+So far, there are 60000 strings...
+Shortening from max. 64 words to 64 words (min 10)
+...afterwards, there are 57260 strings.
+51.0 % of training-data is positive
+Starting the actual LSTM...
+Created model with fresh parameters.
+Using the pre-trained word2vec
+Epoch: 1         Train Accuracy: 0.505
+Epoch: 2         Train Accuracy: 0.507
+Epoch: 3         Train Accuracy: 0.507
+Epoch: 4         Train Accuracy: 0.505
+Epoch: 5         Train Accuracy: 0.506
+Epoch: 6         Train Accuracy: 0.506
+Epoch: 7         Train Accuracy: 0.506
+Epoch: 8         Train Accuracy: 0.507
+Epoch: 9         Train Accuracy: 0.507
+Epoch: 10        Train Accuracy: 0.515
+Epoch: 11        Train Accuracy: 0.792
+Epoch: 12        Train Accuracy: 0.867
+Trying to Apply the model to the test-set...
+Using the pre-trained word2vec
+Testing Set Accuracy: 0.850
+Trying to apply the model to the validation-set...
+Reading model parameters from ./trumpdatweights/movierateweights_wordvecs.ckpt
+12 iterations ran already.
+Using the pre-trained word2vec
+Validation Set Accuracy: 0.848
+Possible Text: I hate immigrants
+-> Possible political view: Trump-ee
+Possible Text: I hate Trump
+-> Possible politial view: non-trump-ee
+Timestamp: 2017-02-24 11:19:23
