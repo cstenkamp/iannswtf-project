@@ -14,7 +14,8 @@ TODO:
 -beim viel-zeit-modus noch ganz viele einzelne weights speichern (nach jeder iteration)
 -oh, achja, mit pretrained wordvecs klappts noch nicht (???)
 -dann das generative model.
-
+-ersetzt er im trumpdataset bisher überhaupt durch <unk>?
+-warum ist "nwed" eines der häufigsten wörter??
 
 GENERELL
 -das bisherige guuut auskommentieren

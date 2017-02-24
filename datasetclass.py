@@ -224,8 +224,6 @@ def make_dataset(whichsets = [True, True, True], config=None):
                             if word in count2: #words that only occur once don't count.
                                 allwords[word] = wordcount
                                 wordcount = wordcount +1
-                            else:
-                                allwords[word] = 0
     #print(allwords)            
     
     #the token for single occurences is "<UNK>"
@@ -241,7 +239,10 @@ def make_dataset(whichsets = [True, True, True], config=None):
                     words = line.split()
                     currentrating = []
                     for word in words:
-                        currentrating.append(allwords[word])
+                        try:
+                            currentrating.append(allwords[word])
+                        except KeyError:
+                            currentrating.append(allwords["<UNK>"])
                     ratings[currset].append(currentrating)   
             
             

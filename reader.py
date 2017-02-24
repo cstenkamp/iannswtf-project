@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 import time
 from scipy import stats
 import os
+import shutil
+
 #====own functions====
 import file_functions
 from create_dataset import preparestring
@@ -43,6 +45,7 @@ class Config_moviedat(object):
     batch_size = 32
     expressive_run = False
     checkpointpath = "./moviedatweights/"    
+    longruntrials = 11
     def __init__(self):
         if not os.path.exists(self.checkpointpath):
             os.makedirs(self.checkpointpath)         
@@ -61,6 +64,7 @@ class Config_trumpdat(object):
     maxlen_percentage = 1
     minlen_abs = 10
     TRAIN_STEPS = 13
+    longruntrials = 15
     batch_size = 48
     expressive_run = False
     checkpointpath = "./trumpdatweights/"
@@ -76,13 +80,6 @@ else:
         
 
 #==============================================================================
-
-
-
-
-
-
-
 
 def to_one_hot(y):
     y_one_hot = []
@@ -174,7 +171,7 @@ print(round(percentage),"% of training-data is positive")
 assert 20 < percentage < 80
 
 print("Starting the actual LSTM...")
-file_functions.prepare_checkpoint(config.use_w2v,config.checkpointpath)
+
                  
 
 #=============================================================================
@@ -193,9 +190,10 @@ def create_batches(data_X, data_Y, batch_size):
 
 
 class LSTM(object):
-    def __init__(self, is_training):
+    def __init__(self, dataset, is_training):
     
-        self.input_data = tf.placeholder(tf.int32, [config.batch_size, moviedat.maxlenstring], name="input_x")
+        self.dataset = dataset
+        self.input_data = tf.placeholder(tf.int32, [config.batch_size, self.dataset.maxlenstring], name="input_x")
         self.target = tf.placeholder(tf.float32, [config.batch_size, 2], name="input_t") #2 = n_classes
     
         #non-stateful LSTM   #128 ist hidden_size (=#Vectors???)
@@ -207,18 +205,18 @@ class LSTM(object):
         initial_state = cell.zero_state(config.batch_size, tf.float32)
             
         if config.use_w2v:
-#            embedding = tf.Variable(moviedat.wordvecs, name="embedding", dtype=tf.float32)
+#            embedding = tf.Variable(self.dataset.wordvecs, name="embedding", dtype=tf.float32)
 #            inputs = tf.nn.embedding_lookup(embedding, self.input_data)     
-#            W = tf.Variable(tf.constant(0.0, shape=[moviedat.ohnum, config.embedding_size]), trainable=False, name="W")
-#            embedding_placeholder = tf.placeholder(tf.float32, [moviedat.ohnum, config.embedding_size])
+#            W = tf.Variable(tf.constant(0.0, shape=[self.dataset.ohnum, config.embedding_size]), trainable=False, name="W")
+#            embedding_placeholder = tf.placeholder(tf.float32, [self.dataset.ohnum, config.embedding_size])
 #            embedding_init = W.assign(embedding_placeholder)
             with tf.device('/cpu:0'), tf.name_scope("embedding"):
-                embedding = tf.Variable(tf.random_uniform([moviedat.ohnum, config.embedding_size], -1.0, 1.0), trainable = False, name="embedding")
+                embedding = tf.Variable(tf.random_uniform([self.dataset.ohnum, config.embedding_size], -1.0, 1.0), trainable = False, name="embedding")
                 self.embedding = embedding
                 inputs = tf.nn.embedding_lookup(embedding, self.input_data, name="embeddings")
         else:            
             with tf.device("/cpu:0"):
-                embedding = tf.get_variable("embedding", [moviedat.ohnum+1, 128], dtype=tf.float32)
+                embedding = tf.get_variable("embedding", [self.dataset.ohnum+1, 128], dtype=tf.float32)
                 inputs = tf.nn.embedding_lookup(embedding, self.input_data, name="embeddings")
 
         if is_training:
@@ -288,20 +286,22 @@ def initialize_uninitialized_vars(session):
     for var in tf.global_variables():
         try:
             session.run(var)
-        except tf.errors.FailedPreconditionError: #rather ask for forgiveness than for allowance
+        except tf.errors.FailedPreconditionError: #rather ask for forgiveness than for allowance;
             uninitialized_vars.append(var)
     init_new_vars_op = tf.variables_initializer(uninitialized_vars)
     session.run(init_new_vars_op)
             
 
-def train_and_test(amount_iterations):
+def train_and_test(dataset, amount_iterations):
+    file_functions.prepare_checkpoint(config.use_w2v,config.checkpointpath)
+    
     with tf.Graph().as_default(), tf.Session() as session:
         initializer = tf.random_uniform_initializer(-0.1, 0.1)
     
      #TODO: abfragen ob er lernen, applien oder beides will (oder vie-zeit-modus)
      #viel-zeit-modus: wo er train und test accuracy live errechnet und direkt plottet und man sich das beste aussuchen kann
         with tf.variable_scope("model", reuse=None, initializer=initializer):
-            model = LSTM(is_training=True)
+            model = LSTM(dataset=dataset, is_training=True)
     
             saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
            
@@ -318,7 +318,7 @@ def train_and_test(amount_iterations):
                 iteration = 0
             
             if config.use_w2v:
-                session.run(model.embedding.assign(moviedat.wordvecs))
+                session.run(model.embedding.assign(dataset.wordvecs))
                 print("Using the pre-trained word2vec")
             else:
                 print("Not using the pre-trained word2vec")
@@ -345,10 +345,10 @@ def train_and_test(amount_iterations):
             
         with tf.variable_scope("model", reuse=True, initializer=initializer):
             print("Trying to Apply the model to the test-set...")        
-            testmodel = LSTM(is_training=False)
+            testmodel = LSTM(dataset=dataset, is_training=False)
             
             if config.use_w2v:
-                session.run(testmodel.embedding.assign(moviedat.wordvecs))
+                session.run(testmodel.embedding.assign(dataset.wordvecs))
                 print("Using the pre-trained word2vec")
             else:
                 print("Not using the pre-trained word2vec")
@@ -362,27 +362,27 @@ def train_and_test(amount_iterations):
 
 
 
-def validate():
+def validate(dataset, bkpath = config.checkpointpath):
    with tf.Graph().as_default(), tf.Session() as session:
        initializer = tf.random_uniform_initializer(-0.1, 0.1)
     
        with tf.variable_scope("model", reuse=None, initializer=initializer):
             print("Trying to apply the model to the validation-set...")        
-            testmodel = LSTM(is_training=False)
+            testmodel = LSTM(dataset=dataset, is_training=False)
 
             saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
            
-            ckpt = tf.train.get_checkpoint_state(config.checkpointpath) #TODO: da unterscheidet er noch nicht zwischen mit und ohne w2v..
+            ckpt = tf.train.get_checkpoint_state(bkpath) #TODO: da unterscheidet er noch nicht zwischen mit und ohne w2v..
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                print(file_functions.read_iteration(path = config.checkpointpath),"iterations ran already.")
+                print(file_functions.read_iteration(path = bkpath),"iterations ran already.")
             else:
                 print("uhm, without a model it doesn't work") #TODO: anders
                 exit()
             
             if config.use_w2v:
-                session.run(testmodel.embedding.assign(moviedat.wordvecs))
+                session.run(testmodel.embedding.assign(dataset.wordvecs))
                 print("Using the pre-trained word2vec")
             else:
                 print("Not using the pre-trained word2vec")
@@ -396,17 +396,17 @@ def validate():
             
             
 
-def test_one_sample(string, doprint=False):
+def test_one_sample(dataset, string, doprint=False):
     if doprint: print("Possible Text:",string)
-    dataset = [moviedat.lookup[i] if i in moviedat.lookup.keys() else moviedat.lookup["<UNK>"] for i in preparestring(string).split(" ")] #oh damn, für solche einzeiler liebe ich python.
-    dataset = dataset + [0]*(moviedat.maxlenstring-len(dataset))
+    dataset = [dataset.lookup[i] if i in dataset.lookup.keys() else dataset.lookup["<UNK>"] for i in preparestring(string).split(" ")] #oh damn, für solche einzeiler liebe ich python.
+    dataset = dataset + [0]*(dataset.maxlenstring-len(dataset))
     dataset = [dataset]*config.batch_size 
     data_t = to_one_hot([0]*config.batch_size)
     with tf.Graph().as_default(), tf.Session() as session:
         initializer = tf.random_uniform_initializer(-0.1, 0.1)
     
         with tf.variable_scope("model", reuse=None, initializer=initializer):    
-            testmodel = LSTM(is_training=False)
+            testmodel = LSTM(dataset=dataset, is_training=False)
     
             saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
            
@@ -435,13 +435,13 @@ class global_plot:
         plt.axis([0.9, x_lim+0.1, 0, 1.005])
         plt.ion()
         self.x_lim = x_lim
-        self.current_x = 1
+        self.current_x = 0
         self.trainvals = []
         self.testvals = []
         
     def update_plot(self, new_train, new_test):
         self.current_x += 1
-        x = range(self.current_x)
+        x = [elem+1 for elem in range(self.current_x)]
         self.trainvals.append(new_train)
         self.testvals.append(new_test)
         plt.axis([0.9, self.x_lim+0.1, 0, 1.005])
@@ -453,16 +453,22 @@ class global_plot:
 
         
 
-def plot_test_and_train(amount_iterations):
-    #TODO: hier bei jeder einzelnen Iteration speichern und letztlich das vom argmax nur behalten!!!
+def plot_test_and_train(dataset, amount_iterations):
+    
+    middlename = "_wordvecs" if config.use_w2v else ""
+    pathname = config.checkpointpath+"ManyIterations/"
+    
+    for filename in os.listdir(pathname):
+        os.remove(os.path.join(pathname, filename))
+    
     with tf.Graph().as_default(), tf.Session() as session:
         initializer = tf.random_uniform_initializer(-0.1, 0.1)
     
         with tf.variable_scope("model", reuse=None, initializer=initializer):
-            model = LSTM(is_training=True)
+            model = LSTM(dataset=dataset, is_training=True)
 
         with tf.variable_scope("model", reuse=True, initializer=initializer): 
-            testmodel = LSTM(is_training=False)
+            testmodel = LSTM(dataset=dataset, is_training=False)
     
         saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
   
@@ -472,8 +478,8 @@ def plot_test_and_train(amount_iterations):
         iteration = 0
         
         if config.use_w2v:
-            session.run(model.embedding.assign(moviedat.wordvecs))
-            session.run(testmodel.embedding.assign(moviedat.wordvecs))
+            session.run(model.embedding.assign(dataset.wordvecs))
+            session.run(testmodel.embedding.assign(dataset.wordvecs))
             print("Using the pre-trained word2vec")
         else:
             print("Not using the pre-trained word2vec")
@@ -489,25 +495,29 @@ def plot_test_and_train(amount_iterations):
             print("Epoch: %d \t Train Accuracy: %.3f \t Testing Accuracy: %.3f" % (i + 1, train_accuracy, test_accuracy))          
   
             plot.update_plot(train_accuracy, test_accuracy)
-            test_accuracies.append[test_accuracy]
+            test_accuracies.append(test_accuracy)
             
         bestone = np.argmax(test_accuracies)+1    
         
-        middlename = "_wordvecs" if config.use_w2v else ""
-        pathname = config.checkpointpath+"ManyIterations/"
         tokeep = "weights"+middlename+"_iteration"+str(bestone)
         for filename in os.listdir(pathname):
             if not tokeep in filename: 
                 os.remove(os.path.join(pathname, filename))
         
-        lines = ['model_checkpoint_path : "'+tokeep+'.ckpt"','all_model_checkpoint_paths : "'+tokeep+'.ckpt"', '#Iteration: "'+bestone+'"']
+        lines = ['model_checkpoint_path : "'+tokeep+'.ckpt"','all_model_checkpoint_paths : "'+tokeep+'.ckpt"', '#Iteration: "'+str(bestone)+'"']
 
         infile = open(pathname+"checkpoint", "w") #create a new file in writing mode,
         infile.write("\n".join(lines));  #and dump the content of our "lines" into it.
         infile.close()   
 
-        print("Saved the best episode, #",bestone)        
-                                                                               
+        print("Saved the best episode, #"+str(bestone)+", with accuracy",np.max(test_accuracies)) 
+        if 0.35 < np.max(test_accuracies) < 0.65:
+            print("I can tell you that it sucked. However, normally it does learn quite well. You may want to run it again, 85% distinction accuracy is possible.")
+        
+        if input("Shall I copy the best episode into "+config.checkpointpath+"? It may overwrite the current one in there.") in ('y','yes','Y','Yes','YES'):
+         for filename in os.listdir(pathname):
+            shutil.copy(pathname+filename, (pathname+filename).replace("ManyIterations/",""))
+            
         return bestone
 
 
@@ -515,16 +525,19 @@ def plot_test_and_train(amount_iterations):
  
 #==============================================================================
 
-print("Best training-set-result after",plot_test_and_train(3),"iterations")
-#train_and_test(config.TRAIN_STEPS)
-validate()
+if input("Do you want to run the long version, which figures out the right amount of training etc automatically?") in ('y','yes','Y','Yes','YES'):
+    print("Best training-set-result after",plot_test_and_train(moviedat, config.longruntrials),"iterations")
+    validate(dataset=moviedat, path=config.checkpointpath+"ManyIterations/")
+else:
+    train_and_test(moviedat, config.TRAIN_STEPS)
+    validate(dataset = moviedat, path = config.checkpointpath)
 
 if config.is_for_trump:
-    test_one_sample("I hate immigrants", True)
-    test_one_sample("I hate Trump", True)
+    test_one_sample(moviedat, "I hate immigrants", True)
+    test_one_sample(moviedat, "I hate Trump", True)
 else:
-    test_one_sample("I hated this movie. It sucks. The movie is bad, Worst movie ever. Bad Actors, bad everything.", True)
-    test_one_sample("I loved this movie. It is awesome. The movie is good, best movie ever. good Actors, good everything.", True)
+    test_one_sample(moviedat, "I hated this movie. It sucks. The movie is bad, Worst movie ever. Bad Actors, bad everything.", True)
+    test_one_sample(moviedat, "I loved this movie. It is awesome. The movie is good, best movie ever. good Actors, good everything.", True)
 
 
 print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
