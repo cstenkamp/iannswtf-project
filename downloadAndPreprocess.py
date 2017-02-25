@@ -17,20 +17,21 @@ consumer_secret =  "WdU6p2icCQvmQWNwnYokTBIgmElUer3Xs1p4eoty5jIGvkwZfT"
 access_key = "2617326211-Q3OeGSi5sJPaq4mHEGXJd2sPow2epBmLTBbdC0z"
 access_secret = "O6umMNseUdPHJW8pX6CLUgONwhNul2NuD8oNqLoi7HKqL"
 
-currentdir = os.getcwd()
+acclist = './accountlists/accountlist.txt'
+deacclist = './accountlists/negativeaccountlist.txt'
 #=============================================================================
 '''Here, all parameter necessary to successfully gather, process and manage Tweets are created. This section also runs all other functions'''
 
 def run_all():
-    poslist = read_to_string('accountlist.txt')
+    poslist = read_to_string(acclist)
     for p in poslist:
         get_all_tweets(p)
-    mergetxt(True,'accountlist')
+    mergetxt(True, acclist)
     
-    neglist = read_to_string('negativeaccountlist.txt')
+    neglist = read_to_string(deacclist)
     for n in neglist:
        get_all_tweets(n)
-    mergetxt(False,'negativeaccountlist')
+    mergetxt(False,deacclist)
     print('Done!')
 
 def merge_only():
@@ -62,7 +63,10 @@ def get_all_tweets(screen_name):
     auth.set_access_token(access_key, access_secret)
     api = tweepy.API(auth)
     alltweets = []
-
+    
+    if os.path.isfile(screen_name):
+        print('Tweets from '+screen_name+' already collected, moving on...')
+        return
     
     print('Downloading Tweets from User: '+screen_name)
     new_tweets = api.user_timeline(screen_name = screen_name,count=200)
@@ -97,7 +101,7 @@ def mergetxt(tmp, namelist):
     else:
         alltxt = open('Trumphater.txt','a')
         
-    merginglist = read_to_string(namelist+'.txt')
+    merginglist = read_to_string(namelist)
     for f in merginglist:
         with open (f+'.txt') as infile:
             alltxt.write(infile.read())
@@ -109,6 +113,7 @@ def mergetxt(tmp, namelist):
             
 def filterforcontent(tmp, alltwts):
     try:
+        trmpwds = ['Trump','trump','TRUMP','POTUS','president','MAGA','@realDonaldTrump','CPAC','immigrants']
         if tmp == True:
             outfile = open('Filtered Tweets positive.txt','a')
         if tmp == False:
@@ -130,12 +135,12 @@ def filterforcontent(tmp, alltwts):
                         line = line.replace('w/', 'with')
                         line = line[:-1]
                         if tmp == True:
-                            trmpwds = ['Trump','POTUS','president','MAGA','@realDonaldTrump','CPAC']
                             if any(ext in line for ext in trmpwds):
                                 outfile.write(line + '\n')
                         else: 
                             if tmp == False:
-                                outfile.write(line + '\n')
+                                if not any(ext in line for ext in trmpwds):
+                                    outfile.write(line + '\n')
     except FileNotFoundError:
         return []
 
