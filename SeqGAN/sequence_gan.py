@@ -50,13 +50,9 @@ generated_num = 10000
 ##############################################################################################
 
 
-class PoemGen(model.LSTM):
-    def g_optimizer(self, *args, **kwargs):
-        return tf.train.AdamOptimizer()  # ignore learning rate
-
 
 def get_trainable_model(num_emb):
-    return PoemGen(num_emb, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
+    return model.LSTM(num_emb, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
 
 
 def generate_samples(sess, trainable_model, batch_size, generated_num, output_file):
@@ -66,7 +62,7 @@ def generate_samples(sess, trainable_model, batch_size, generated_num, output_fi
     for _ in range(int(generated_num / batch_size)):
         generated_samples.extend(trainable_model.generate(sess))
     end = time.time()
-    # print('Sample generation time:', (end - start))
+    print('Sample generation time:', (end - start))
 
     with open(output_file, 'w') as fout:
         for poem in generated_samples:
@@ -234,7 +230,7 @@ def main():
             print('pre-train epoch ', pre_iteration+epoch+1, 'test_loss ', test_loss)
             buffer = str(epoch) + ' ' + str(test_loss) + '\n'
             log.write(buffer)
-        saver.save(sess, "./pretrain.ckpt")
+        saver.save(sess, "./model.ckpt")
         pretrainiters = pre_iteration+epoch+1
         write_iteration(pretrainiters,"Preprocess-Iteration")
         write_iteration(distrainiters,"Discriminator-Iteration")
@@ -249,6 +245,19 @@ def main():
     generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
     likelihood_data_loader.create_batches(eval_file)
     significance_test(sess, target_lstm, likelihood_data_loader, 'significance/supervise.txt')
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     print('Start training discriminator for',dis_alter_epoch-dis_iteration,'further iterations (from',dis_alter_epoch,'because',dis_iteration,'are already done)')
     for i in range(dis_alter_epoch-dis_iteration):
@@ -274,13 +283,27 @@ def main():
                 _, step = sess.run([dis_train_op, dis_global_step], feed)
             except ValueError:
                 pass
-        saver.save(sess, "./pretrain.ckpt")
+        saver.save(sess, "./model.ckpt")
         distrainiters = dis_iteration+i+1
         write_iteration(pretrainiters,"Preprocess-Iteration")
         write_iteration(distrainiters,"Discriminator-Iteration")
         write_iteration(reitrainiters,"Reinforcement-Iteration")
 
     rollout = ROLLOUT(generator, 0.8)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     print('#########################################################################')
     print('Start Reinforcement Training Generator for',TOTAL_BATCH-rei_iteration,'further iteration (from',TOTAL_BATCH,'because',rei_iteration,'are already done)')
@@ -331,7 +354,7 @@ def main():
                 except ValueError:
                     pass
         
-        saver.save(sess, "./pretrain.ckpt")
+        saver.save(sess, "./model.ckpt")
         reitrainiters = rei_iteration+total_batch+1
         write_iteration(pretrainiters,"Preprocess-Iteration")
         write_iteration(distrainiters,"Discriminator-Iteration")

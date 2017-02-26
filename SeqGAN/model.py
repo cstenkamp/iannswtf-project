@@ -37,16 +37,13 @@ class LSTM(object):
         # processed for batch
         with tf.device("/cpu:0"):
             inputs = tf.split(axis=1, num_or_size_splits=self.sequence_length, value=tf.nn.embedding_lookup(self.g_embeddings, self.x))
-            self.processed_x = tf.stack(
-                [tf.squeeze(input_, [1]) for input_ in inputs])  # seq_length x batch_size x emb_dim
+            self.processed_x = tf.stack([tf.squeeze(input_, [1]) for input_ in inputs])  # seq_length x batch_size x emb_dim
 
         self.h0 = tf.zeros([self.batch_size, self.hidden_dim])
         self.h0 = tf.stack([self.h0, self.h0])
 
-        gen_o = tensor_array_ops.TensorArray(dtype=tf.float32, size=self.sequence_length,
-                                             dynamic_size=False, infer_shape=True)
-        gen_x = tensor_array_ops.TensorArray(dtype=tf.int32, size=self.sequence_length,
-                                             dynamic_size=False, infer_shape=True)
+        gen_o = tensor_array_ops.TensorArray(dtype=tf.float32, size=self.sequence_length,dynamic_size=False, infer_shape=True)
+        gen_x = tensor_array_ops.TensorArray(dtype=tf.int32, size=self.sequence_length,dynamic_size=False, infer_shape=True)
 
         def _g_recurrence(i, x_t, h_tm1, gen_o, gen_x):
             h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
@@ -69,12 +66,9 @@ class LSTM(object):
         self.gen_x = tf.transpose(self.gen_x, perm=[1, 0])  # batch_size x seq_length
 
         # supervised pretraining for generator
-        g_predictions = tensor_array_ops.TensorArray(
-            dtype=tf.float32, size=self.sequence_length,
-            dynamic_size=False, infer_shape=True)
+        g_predictions = tensor_array_ops.TensorArray(dtype=tf.float32, size=self.sequence_length, dynamic_size=False, infer_shape=True)
 
-        ta_emb_x = tensor_array_ops.TensorArray(
-            dtype=tf.float32, size=self.sequence_length)
+        ta_emb_x = tensor_array_ops.TensorArray(dtype=tf.float32, size=self.sequence_length)
         ta_emb_x = ta_emb_x.unstack(self.processed_x)
 
         def _pretrain_recurrence(i, x_t, h_tm1, g_predictions):
@@ -91,8 +85,7 @@ class LSTM(object):
                        tf.nn.embedding_lookup(self.g_embeddings, self.start_token),
                        self.h0, g_predictions))
 
-        self.g_predictions = tf.transpose(
-            self.g_predictions.stack(), perm=[1, 0, 2])  # batch_size x seq_length x vocab_size
+        self.g_predictions = tf.transpose(self.g_predictions.stack(), perm=[1, 0, 2])  # batch_size x seq_length x vocab_size
 
         # pretraining loss
         self.pretrain_loss = -tf.reduce_sum(
@@ -102,7 +95,7 @@ class LSTM(object):
         ) / (self.sequence_length * self.batch_size)
 
         # training updates
-        pretrain_opt = self.g_optimizer(self.learning_rate)
+        pretrain_opt = tf.train.AdamOptimizer() #tf.train.GradientDescentOptimizer(self.learning_rate) #tf.train.AdamOptimizer()
 
         self.pretrain_grad, _ = tf.clip_by_global_norm(
             tf.gradients(self.pretrain_loss, self.g_params), self.grad_clip)
@@ -118,7 +111,7 @@ class LSTM(object):
                 ), 1) * tf.reshape(self.rewards, [-1])
         )
 
-        g_opt = self.g_optimizer(self.learning_rate)
+        g_opt = tf.train.AdamOptimizer() #tf.train.GradientDescentOptimizer(self.learning_rate)  #tf.train.AdamOptimizer()
 
         self.g_grad, _ = tf.clip_by_global_norm(
             tf.gradients(self.g_loss, self.g_params), self.grad_clip)
@@ -129,9 +122,7 @@ class LSTM(object):
         return outputs[0]
 
     def pretrain_step(self, session, x, saver):
-        outputs = session.run([self.pretrain_updates, self.pretrain_loss, self.g_predictions],
-                              feed_dict={self.x: x})
-        
+        outputs = session.run([self.pretrain_updates, self.pretrain_loss, self.g_predictions],feed_dict={self.x: x})
         return outputs
 
     def init_matrix(self, shape):
@@ -213,6 +204,3 @@ class LSTM(object):
             return logits
 
         return unit
-
-    def g_optimizer(self, *args, **kwargs):
-        return tf.train.GradientDescentOptimizer(*args, **kwargs)

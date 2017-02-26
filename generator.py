@@ -221,25 +221,25 @@ if not ckpt:
 
 
 ## 2) GENERATE LEN_TEST_TEXT CHARACTERS USING THE TRAINED NETWORK
-
-if ckpt and ckpt.model_checkpoint_path:
-    print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-    saver.restore(sess, ckpt.model_checkpoint_path)
-else:
-    print("Created model with fresh parameters.")
-    init = tf.global_variables_initializer()
-    init.run()
-
-for i in range(len(TEST_PREFIX)):
-	out = net.run_step(TEST_PREFIX[i], i==0)
-
-print("SENTENCE:")
-gen_str = TEST_PREFIX
-for i in range(LEN_TEST_TEXT):
-	element = np.random.choice( range(len(datset.wordvecs)), p=out ) # Sample character from the network according to the generated output probabilities
-	gen_str += datset.wordvecs[element]
-
-	out = net.run_step( datset.wordvecs[element], False )
-    
-_, sentence = embed_to_word(datset, gen_str)
-print(sentence)
+#
+#if ckpt and ckpt.model_checkpoint_path:
+#    print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+#    saver.restore(sess, ckpt.model_checkpoint_path)
+#else:
+#    print("Created model with fresh parameters.")
+#    init = tf.global_variables_initializer()
+#    init.run()
+#
+#for i in range(len(TEST_PREFIX)):
+#	out = net.run_step(TEST_PREFIX[i], i==0)
+#
+#print("SENTENCE:")
+#gen_str = TEST_PREFIX
+#for i in range(LEN_TEST_TEXT):
+#	element = np.random.choice( range(len(datset.wordvecs)), p=out ) # Sample character from the network according to the generated output probabilities
+#	gen_str += datset.wordvecs[element]
+#
+#	out = net.run_step( datset.wordvecs[element], False )
+#    
+#_, sentence = embed_to_word(datset, gen_str)
+#print(sentence)

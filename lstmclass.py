@@ -114,17 +114,17 @@ class LSTM(object):
             else:
                 savename = self.config.checkpointpath+"weights.ckpt"
         
-        if SaveALot:
-            savename = self.config.checkpointpath+"ManyIterations/"
-            if not os.path.exists(savename):
-                os.makedirs(savename) 
-            middlename = "_wordvecs" if self.config.use_w2v else ""
-            savename += "weights"+middlename+"_iteration"+str(iteration+epoch+1)+".ckpt"
-        
-            saver.save(session, savename)
+            if SaveALot:
+                savename = self.config.checkpointpath+"ManyIterations/"
+                if not os.path.exists(savename):
+                    os.makedirs(savename) 
+                middlename = "_wordvecs" if self.config.use_w2v else ""
+                savename += "weights"+middlename+"_iteration"+str(iteration+epoch+1)+".ckpt"
             
-            time.sleep(0.1)
-            file_functions.write_iteration(number = iteration+epoch+1, path=self.config.checkpointpath)
+            saver.save(session, savename)
+        
+        time.sleep(0.1)
+        file_functions.write_iteration(number = iteration+epoch+1, path=self.config.checkpointpath)
         
         return accuracy
     
@@ -340,8 +340,9 @@ def plot_test_and_train(config, dataset, amount_iterations, X_train, y_train, X_
     middlename = "_wordvecs" if config.use_w2v else ""
     pathname = config.checkpointpath+"ManyIterations/"
     
-    for filename in os.listdir(pathname):
-        os.remove(os.path.join(pathname, filename))
+    if os.path.exists(pathname):
+        for filename in os.listdir(pathname):
+            os.remove(os.path.join(pathname, filename))
     
     with tf.Graph().as_default(), tf.Session() as session:
         initializer = tf.random_uniform_initializer(-0.1, 0.1)

@@ -8,17 +8,6 @@ Created on Thu Feb 23 15:32:12 2017
 import os
 import copy
 
-positive = "Filtered Tweets positive.txt"
-negative = "Filtered Tweets negative.txt"
-amount_train = 30000
-amount_test = amount_valid = amount_train//4
-frompath = "./Johannes/"
-intopath = "./trumpsets/"
-files = ["train","test","validation"]
-target_appendix = "-target"
-
-
-
 def line_count(filename):
     """
     Count file's lines.
@@ -75,7 +64,12 @@ def preprocess(text):
 
 
 
-def create_from_johannes():
+def create_from_johannes(frompath, positive="Filtered Tweets positive.txt", negative="Filtered Tweets negative.txt", amount_train=30000, intopath="./trumpsets/"):
+    
+    amount_test = amount_valid = amount_train//4
+    files = ["train","test","validation"]
+    target_appendix = "-target"    
+
     assert line_count(frompath+positive) >= amount_test + amount_valid + amount_train
     assert line_count(frompath+negative) >= amount_test + amount_valid + amount_train                     
     counter = 0
@@ -111,4 +105,6 @@ def create_from_johannes():
         infile.close()     
         i += 1
         
-create_from_johannes()
+        
+if __name__ == '__main__':
+    create_from_johannes(frompath="./Johannes/")
