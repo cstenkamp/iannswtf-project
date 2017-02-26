@@ -19,6 +19,8 @@ access_secret = "O6umMNseUdPHJW8pX6CLUgONwhNul2NuD8oNqLoi7HKqL"
 
 acclist = './accountlists/accountlist.txt'
 deacclist = './accountlists/negativeaccountlist.txt'
+
+
 #=============================================================================
 '''Here, all parameter necessary to successfully gather, process and manage Tweets are created. This section also runs all other functions'''
 
@@ -31,12 +33,12 @@ def run_all():
     neglist = read_to_string(deacclist)
     for n in neglist:
        get_all_tweets(n)
-    mergetxt(False,deacclist)
+    mergetxt(False, deacclist)
     print('Done!')
 
 def merge_only():
-    mergetxt(True,'accountlist')
-    mergetxt(False,'negativeaccountlist')
+    mergetxt(True, acclist)
+    mergetxt(False, deacclist)
 
 
 def create_folder(foldername):
@@ -64,7 +66,7 @@ def get_all_tweets(screen_name):
     api = tweepy.API(auth)
     alltweets = []
     
-    if os.path.isfile(screen_name):
+    if os.path.isfile('./Tweets/' + screen_name+'.txt'):
         print('Tweets from '+screen_name+' already collected, moving on...')
         return
     
@@ -79,15 +81,12 @@ def get_all_tweets(screen_name):
         oldest = alltweets[-1].id - 1
         print("...%s tweets downloaded so far" % (len(alltweets)))
        
-    
-    file = open(screen_name + '.txt', "w", encoding="utf8")
-    for status in alltweets:
-        json.dump(status.text,file,sort_keys = True,indent = 4)
-        file.write("\n")
-
-    
-    #close the file
-    print("Tweets saved to "+ screen_name +'.txt')
+        file = open('./Tweets/' + screen_name + '.txt', "w", encoding="utf8")
+        for status in alltweets:
+            json.dump(status.text,file,sort_keys = True,indent = 4)
+            file.write("\n")
+        
+    print("Tweets saved to /Tweets/"+ screen_name +'.txt'+'\n')
     file.close()
 
 #=============================================================================
@@ -103,23 +102,19 @@ def mergetxt(tmp, namelist):
         
     merginglist = read_to_string(namelist)
     for f in merginglist:
-        with open (f+'.txt') as infile:
-            alltxt.write(infile.read())
-    if tmp == True:
-        filterforcontent(tmp,'Trumpliker')
-    else:
-        if tmp == False:
-            filterforcontent(tmp,'Trumphater')
-            
+            with open (f+'.txt') as infile:
+                alltxt.write(infile.read())
+            filterforcontent(tmp,alltxt)
+                                
 def filterforcontent(tmp, alltwts):
     try:
-        trmpwds = ['Trump','trump','TRUMP','POTUS','president','MAGA','@realDonaldTrump','CPAC','immigrants']
         if tmp == True:
             outfile = open('Filtered Tweets positive.txt','a')
-        if tmp == False:
-            outfile = open('Filtered Tweets negative.txt','a')
+        else: 
+            if tmp == False:
+                outfile = open('Filtered Tweets negative.txt','a')
             
-        with open(alltwts+'.txt', encoding="utf8") as fltfile:
+        with open(alltwts, encoding="utf8") as fltfile:
             for line in fltfile:
                 if not 'http' in line:
                     if len(line) > 50:
@@ -129,24 +124,41 @@ def filterforcontent(tmp, alltwts):
                         line = re.sub('(\\\\u\\w+?)+?\\b','',line)
                         line = line.replace('\\','')
                         line = line.replace('RT ','')
-                        line = line.replace('#','')
+                        #line = line.replace('#','')
                         line = line.replace('&amp','and')
                         line = line.replace('w/a','without')
                         line = line.replace('w/', 'with')
                         line = line[:-1]
-                        if tmp == True:
-                            if any(ext in line for ext in trmpwds):
-                                outfile.write(line + '\n')
-                        else: 
-                            if tmp == False:
-                                if not any(ext in line for ext in trmpwds):
-                                    outfile.write(line + '\n')
+                        outfile.write(line + '\n')
     except FileNotFoundError:
         return []
+#============================================================================
+'''This function lets the user check how a string looks like after preprocessing. 
+Note that preprocessing is handcrafted for tweepy string output and therefore may return odd-looking strings if the input string is a normal sentence'''
+
+def processstring(line):
+    if not 'http' in line:
+        if len(line) > 50:
+            while line.find("  ") > 0:
+                line = line.replace("  ","")
+            line = line[1:-1]
+            line = re.sub('(\\\\u\\w+?)+?\\b','',line)
+            line = line.replace('\\','')
+            line = line.replace('RT ','')
+            #line = line.replace('#','')
+            line = line.replace('&amp','and')
+            line = line.replace('w/a','without')
+            line = line.replace('w/', 'with')
+            line = line[:-1]
+            return line
+        else:
+            print('String too short!')
+            return
+    else:
+        print('string has http in it and therefore will not be processed')
+        return
 
 #============================================================================
 if __name__ == '__main__':
-    #pass in the username of the account you want to download
-    create_folder('Negative')
-    create_folder('Positive')
+    create_folder('Tweets')
     run_all()
