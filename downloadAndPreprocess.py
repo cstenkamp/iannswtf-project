@@ -9,6 +9,7 @@ import tweepy
 import json
 import re
 import os
+from pathlib import Path
 
 
 #Twitter API credentials
@@ -25,6 +26,10 @@ deacclist = './accountlists/negativeaccountlist.txt'
 '''Here, all parameter necessary to successfully gather, process and manage Tweets are created. This section also runs all other functions'''
 
 def run_all():
+    if Path("./Trumpliker.txt").is_file():
+        os.remove("./Trumpliker.txt")
+    if Path("./Trumphater.txt").is_file():
+        os.remove("./Trumphater.txt")    
     poslist = read_to_string(acclist)
     for p in poslist:
         get_all_tweets(p)
@@ -94,19 +99,21 @@ def get_all_tweets(screen_name):
 
 
 
-def mergetxt(tmp, namelist):
+def mergetxt(tmp, namelist, folder="./Tweets/"):
     if tmp == True:
-        alltxt = open('Trumpliker.txt', 'a')
+        alltxt = 'Trumpliker.txt'
     else:
-        alltxt = open('Trumphater.txt','a')
+        alltxt = 'Trumphater.txt'
         
+    alltxtfile = open(alltxt,"a")
     merginglist = read_to_string(namelist)
     for f in merginglist:
-            with open (f+'.txt') as infile:
-                alltxt.write(infile.read())
-            filterforcontent(tmp,alltxt)
+            with open (folder+f+'.txt') as infile:
+                alltxtfile.write(infile.read())
+    filterforcontent(tmp, alltxt, "")
+    
                                 
-def filterforcontent(tmp, alltwts):
+def filterforcontent(tmp, alltwts, folder="./Tweets/"):
     try:
         if tmp == True:
             outfile = open('Filtered Tweets positive.txt','a')
@@ -114,7 +121,7 @@ def filterforcontent(tmp, alltwts):
             if tmp == False:
                 outfile = open('Filtered Tweets negative.txt','a')
             
-        with open(alltwts, encoding="utf8") as fltfile:
+        with open(folder+alltwts, encoding="utf8") as fltfile:
             for line in fltfile:
                 if not 'http' in line:
                     if len(line) > 50:

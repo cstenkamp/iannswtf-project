@@ -12,7 +12,6 @@ NVIDIAGeForce
 deadmau5
 NI_News
 MIRIBerkeley
-Peppy_Pepper
 CookingChannel
 ItsFoodPorn
 IKEAUSA
@@ -33,3 +32,4 @@ Sodapoppintv
 Strippin
 michaels__jbh
 elijahdaniel
+justinbieber

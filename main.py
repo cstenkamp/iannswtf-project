@@ -20,10 +20,11 @@ import datasetclass
 import word2vec
 from lstmclass import plot_test_and_train, test_one_sample, validate, train_and_test
 from create_random import random_strings
+from downloadAndPreprocess import create_folder, run_all
 
 #==============================================================================
 
-is_for_trump = False
+is_for_trump = True
 
 #==============================================================================
  
@@ -304,11 +305,12 @@ if __name__ == '__main__':
     
     if input("Do you want to start completely from scratch?") in ('y','yes','Y','Yes','YES'):
         remove_zwischengespeichertes()
-    
-    
-    
-    
-    
+        if is_for_trump:
+            create_folder("Tweets")
+            run_all() #from downloadandpreprocess
+            os.remove("./Trumpliker.txt")
+            os.remove("./Trumphater.txt")
+            
     
     perform_classifier()    
     
