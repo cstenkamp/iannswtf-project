@@ -9,14 +9,7 @@ from pathlib import Path
 import numpy as np
 import collections
 
-checkpointpath = "./trumpdatweights/"
-
-
-assert Path(checkpointpath+"dataset_mit_wordvecs.pkl").is_file()
-print("Dataset including word2vec found!")
-with open(checkpointpath+'dataset_mit_wordvecs.pkl', 'rb') as input:
-    datset = pickle.load(input)   
-    
+   
 #===========================================
 
     
@@ -54,13 +47,17 @@ def random_strings(dataset, amount, primitive=False, printstuff=False):
                     if num < count[k][1]:
                         currstring.append(count[k][0])
                         break
-            randomstrings.append(currstring)
+            randomstrings.append(list(currstring))
     return randomstrings
         
 
 
-
-strings = random_strings(datset, 5, False)
-        
-print("The randomly generated tweets:")
-print([[datset.uplook[elem] for elem in currstring]for currstring in strings])
+if __name__ == '__main__':    
+    checkpointpath = "./trumpdatweights/"
+    assert Path(checkpointpath+"dataset_mit_wordvecs.pkl").is_file()
+    print("Dataset including word2vec found!")
+    with open(checkpointpath+'dataset_mit_wordvecs.pkl', 'rb') as input:
+        datset = pickle.load(input)   
+    strings = random_strings(datset, 5, False)
+    print("The randomly generated tweets:")
+    print([[datset.uplook[elem] for elem in currstring]for currstring in strings])

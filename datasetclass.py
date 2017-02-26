@@ -20,8 +20,8 @@ class thedataset(object):
         self.validreviews = validx
         self.validtargets = validy
         self.lookup = lookup
-        self.ohnum = count+1  #len(lookup)
         self.uplook = uplook
+        self.ohnum = count+1  #len(lookup)
         
         
     def add_wordvectors(self, wordvecs):

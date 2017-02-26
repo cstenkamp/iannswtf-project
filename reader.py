@@ -13,15 +13,17 @@ import numpy as np
 #np.set_printoptions(threshold=np.nan)
 import datetime
 import os
+import copy
 
-#====own functions====
+#====own files====
 import datasetclass
 import word2vec
 from lstmclass import plot_test_and_train, test_one_sample, validate, train_and_test
+from create_random import random_strings
 
 #==============================================================================
 
-is_for_trump = True
+is_for_trump = False
 
 #==============================================================================
  
@@ -59,7 +61,7 @@ class Config_trumpdat(object):
     num_steps_w2v = 100001 
     maxlen_percentage = 1
     minlen_abs = 10
-    TRAIN_STEPS = 13
+    TRAIN_STEPS = 18
     longruntrials = 16
     batch_size = 48
     expressive_run = False
@@ -108,7 +110,7 @@ def load_dataset(include_w2v, include_tsne):
             #print("Shortening to", datset.shortendata([True, True, True], .75, 40, True, config.embedding_size))
             print(""+str(datset.ohnum)+" different words.")
             rand = round(random.uniform(0,len(datset.traintargets)))
-            print('Sample review', datset.trainreviews[rand][0:100], [datset.uplook[i] for i in datset.trainreviews[rand][0:100]])
+            print('Sample string', datset.trainreviews[rand][0:100], [datset.uplook[i] for i in datset.trainreviews[rand][0:100]])
             
             with open(config.checkpointpath+'dataset_ohne_wordvecs.pkl', 'wb') as output:
                 pickle.dump(datset, output, pickle.HIGHEST_PROTOCOL)
@@ -144,6 +146,136 @@ def load_dataset(include_w2v, include_tsne):
 
 
 
+
+
+def prepare_dataset(datset):
+    print("So far, there are",len(datset.trainreviews),"strings...")
+    print("Shortening from max.",datset.showstringlenghts([True, True, True], 1, False),"words to", datset.shortendata([True, True, True], config.maxlen_percentage, config.minlen_abs, config.expressive_run, config.embedding_size),"words (min",str(config.minlen_abs)+")")
+    print("...afterwards, there are",len(datset.trainreviews),"strings.")
+    #print("Max-Len:",datset.maxlenstring)
+    X_train = np.asarray(datset.trainreviews)
+    y_train = to_one_hot(np.asarray(datset.traintargets))
+    #X_train = np.concatenate([X_train[:10000], X_train[12501:22501]])  #weg damit
+    #y_train = np.concatenate([y_train[:10000], y_train[12501:22501]])
+    
+    X_test = np.asarray(datset.testreviews)
+    y_test = to_one_hot(np.asarray(datset.testtargets))
+    X_validat = np.asarray(datset.validreviews)
+    y_validat = to_one_hot(np.asarray(datset.validtargets))
+    
+    percentage = sum([item[0] for item in y_train])/len([item[0] for item in y_train])*100
+    print(round(percentage),"% of training-data is positive")
+    assert 20 < percentage < 80, "The training data is bad for ANNs"
+    return X_train, y_train, X_test, y_test, X_validat, y_validat
+
+
+
+
+
+def run_lstm(datset, X_train, y_train, X_test, y_test, X_validat, y_validat):
+    global previous_input_was
+    print("Starting the actual LSTM...")
+    
+    if previous_input_was:
+        print("Best training-set-result after",plot_test_and_train(config=config, dataset=datset, amount_iterations=config.longruntrials, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test),"iterations")
+        try:
+            validate(config=config, dataset=datset, X_validat=X_validat, y_validat=y_validat, bkpath=config.checkpointpath+"ManyIterations/")
+        except:
+            print("Can't run on the validation set because you didn't agree to copy!")
+    else:
+        train_and_test(config=config, dataset=datset, amount_iterations=config.TRAIN_STEPS, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test)
+        validate(config=config, dataset = datset, X_validat=X_validat, y_validat=y_validat, bkpath = config.checkpointpath)
+    
+    if config.is_for_trump:
+        test_one_sample(config, datset, "I hate immigrants", True)
+        test_one_sample(config, datset, "I hate Trump", True)
+    else:
+        test_one_sample(config, datset, "I hated this movie. It sucks. The movie is bad, Worst movie ever. Bad Actors, bad everything.", True)
+        test_one_sample(config, datset, "I loved this movie. It is awesome. The movie is good, best movie ever. good Actors, good everything.", True)
+
+
+
+
+
+def create_antiset(datset, primitive=False, showsample = False):
+    print("Creating an anti-dataset...")
+    if Path(config.checkpointpath+"antiset_with_wordvecs.pkl").is_file():
+        print("Antiset including word2vec found!")
+        with open(config.checkpointpath+'antiset_with_wordvecs.pkl', 'rb') as input:
+            antiset = pickle.load(input)       
+            return antiset
+            
+    antitrain = random_strings(datset, len(datset.trainreviews), primitive)
+    antitest = random_strings(datset, len(datset.testreviews), primitive)
+    antivalid = random_strings(datset, len(datset.validreviews), primitive)
+    
+    antiset = datasetclass.thedataset(antitrain, [0]*len(datset.traintargets),
+                                      antitest, [0]*len(datset.testtargets),
+                                      antivalid, [0]*len(datset.validtargets),
+                                      copy.deepcopy(datset.lookup), copy.deepcopy(datset.uplook), datset.ohnum)
+    antiset.add_wordvectors(copy.deepcopy(datset.wordvecs))
+
+    try:
+        antiset.maxlenstring = datset.maxlenstring
+    except:
+        print("For both sets, the maxlenstring is missing!")
+    
+    with open(config.checkpointpath+'antiset_with_wordvecs.pkl', 'wb') as output:
+        pickle.dump(antiset, output, pickle.HIGHEST_PROTOCOL)
+        print('Saved the anti-dataset as Pickle-File')    
+    
+    if showsample:
+        rand = round(random.uniform(0,len(datset.traintargets)))
+        print('Sample string', antiset.trainreviews[rand][0:100], [antiset.uplook[i] for i in antiset.trainreviews[rand][0:100]])
+
+    return antiset
+
+
+
+
+
+def merge_sets(dataset, antiset):
+    tr= copy.deepcopy(dataset.trainreviews); tr.extend(antiset.trainreviews)
+    te= copy.deepcopy(dataset.testreviews); te.extend(antiset.testreviews)
+    va= copy.deepcopy(dataset.validreviews); va.extend(antiset.validreviews)
+    
+    merged = datasetclass.thedataset(tr, [1]*len(dataset.traintargets)+[0]*len(antiset.traintargets),
+                                     te, [1]*len(dataset.testreviews)+[0]*len(antiset.testreviews),
+                                     va, [1]*len(dataset.validreviews)+[0]*len(antiset.validreviews),
+                                     copy.deepcopy(dataset.lookup), copy.deepcopy(dataset.uplook), dataset.ohnum-1) #-1 cause it adds some itself
+    merged.add_wordvectors(copy.deepcopy(dataset.wordvecs))    
+    try:
+        antiset.maxlenstring = dataset.maxlenstring if dataset.maxlenstring > antiset.maxlenstring else antiset.maxlenstring
+    except:
+        print("For both sets, the maxlenstring is missing!")    
+    for i in range(len(merged.trainreviews)):
+        merged.trainreviews[i] = list(merged.trainreviews[i]) 
+    for i in range(len(merged.testreviews)):
+        merged.testreviews[i] = list(merged.testreviews[i]) 
+    for i in range(len(merged.validreviews)):
+        merged.validreviews[i] = list(merged.validreviews[i])
+    
+    
+    return merged
+
+
+def perform_classifier():
+    datset = load_dataset(config.use_w2v, False)
+    X_train, y_train, X_test, y_test, X_validat, y_validat = prepare_dataset(datset)
+    run_lstm(datset, X_train, y_train, X_test, y_test, X_validat, y_validat)
+
+    
+def perform_recognizer():
+    datset = load_dataset(config.use_w2v, False)
+    datset.traintargets = [1]*len(datset.traintargets)
+    datset.testtargets = [1]*len(datset.testtargets)
+    datset.validtargets = [1]*len(datset.validtargets)
+    mergedsets = merge_sets(datset, create_antiset(datset,True))    
+    X_train, y_train, X_test, y_test, X_validat, y_validat = prepare_dataset(mergedsets)        
+    run_lstm(mergedsets, X_train, y_train, X_test, y_test, X_validat, y_validat)
+        
+
+
 #=============================================================================
 
 #Functions of LSTM-class:
@@ -156,49 +288,15 @@ def load_dataset(include_w2v, include_tsne):
 #==============================================================================
 
 
-print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
-
-
-datset = load_dataset(config.use_w2v, False)
-
-print("So far, there are",len(datset.trainreviews),"strings...")
-print("Shortening from max.",datset.showstringlenghts([True, True, True], 1, False),"words to", datset.shortendata([True, True, True], config.maxlen_percentage, config.minlen_abs, config.expressive_run, config.embedding_size),"words (min",str(config.minlen_abs)+")")
-print("...afterwards, there are",len(datset.trainreviews),"strings.")
-#print("Max-Len:",datset.maxlenstring)
-X_train = np.asarray(datset.trainreviews)
-y_train = to_one_hot(np.asarray(datset.traintargets))
-#X_train = np.concatenate([X_train[:10000], X_train[12501:22501]])  #weg damit
-#y_train = np.concatenate([y_train[:10000], y_train[12501:22501]])
-
-X_test = np.asarray(datset.testreviews)
-y_test = to_one_hot(np.asarray(datset.testtargets))
-X_validat = np.asarray(datset.validreviews)
-y_validat = to_one_hot(np.asarray(datset.validtargets))
-
-percentage = sum([item[0] for item in y_train])/len([item[0] for item in y_train])*100
-print(round(percentage),"% of training-data is positive")
-assert 20 < percentage < 80
-
-#==============================================================================
-
-print("Starting the actual LSTM...")
-
-if input("Do you want to run the long version, which figures out the right amount of training etc automatically?") in ('y','yes','Y','Yes','YES'):
-    print("Best training-set-result after",plot_test_and_train(config=config, dataset=datset, amount_iterations=config.longruntrials, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test),"iterations")
-    validate(config=config, dataset=datset, X_validat=X_validat, y_validat=y_validat, bkpath=config.checkpointpath+"ManyIterations/")
-else:
-    train_and_test(config=config, dataset=datset, amount_iterations=config.TRAIN_STEPS, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test)
-    validate(config=config, dataset = datset, X_validat=X_validat, y_validat=y_validat, bkpath = config.checkpointpath)
-
-if config.is_for_trump:
-    test_one_sample(config, datset, "I hate immigrants", True)
-    test_one_sample(config, datset, "I hate Trump", True)
-else:
-    test_one_sample(config, datset, "I hated this movie. It sucks. The movie is bad, Worst movie ever. Bad Actors, bad everything.", True)
-    test_one_sample(config, datset, "I loved this movie. It is awesome. The movie is good, best movie ever. good Actors, good everything.", True)
-
-
-print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
+if __name__ == '__main__':
+    global previous_input_was
+    print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
+    
+    previous_input_was = input("Do you want to run the long version, which figures out the right amount of training etc automatically?") in ('y','yes','Y','Yes','YES')
+    
+    perform_classifier()    
+    
+    print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
 
 
 

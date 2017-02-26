@@ -1,3 +1,0 @@
-model_checkpoint_path: "movierateweights_wordvecs.ckpt"
-all_model_checkpoint_paths: "movierateweights_wordvecs.ckpt"
-#Iteration: "9"
