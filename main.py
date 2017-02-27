@@ -317,6 +317,12 @@ if __name__ == '__main__':
             
     
     perform_classifier()    
+
+
+#    datset = load_dataset(config.use_w2v, False)
+#    print(datset.return_all()[0][:200])
+    
+
     
     print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
 

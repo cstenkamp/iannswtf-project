@@ -172,11 +172,27 @@ class thedataset(object):
         print(str)
         
         
+    def return_all(self):
+        trains = []
+        for string in self.trainreviews:
+            for word in string:
+                trains.append(word)
+            trains.append("<EOS>")
+        tests = []
+        for string in self.testreviews:
+            for word in string:
+                tests.append(word)
+            tests.append("<EOS>")
+        valids = []
+        for string in self.validreviews:
+            for word in string:
+                valids.append(word)
+            valids.append("<EOS>")
+        return trains, tests, valids, self.ohnum
 
 
 
-
-
+    
 
 
 
