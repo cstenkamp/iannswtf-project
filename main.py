@@ -302,25 +302,27 @@ if __name__ == '__main__':
     print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
     print("Using the","Trump" if is_for_trump  else "Movie","dataset")
     
-    previous_input_was = input("Do you want to run the long version, which figures out the right amount of training etc automatically?") in ('y','yes','Y','Yes','YES')
-    
-    if input("Do you want to start completely from scratch?") in ('y','yes','Y','Yes','YES'):
-        remove_zwischengespeichertes()
-        if is_for_trump:
-            create_folder("Tweets")
-            run_all() #from downloadandpreprocess
-            create_from_johannes("./")
-            os.remove("./Trumpliker.txt")
-            os.remove("./Trumphater.txt")
-            os.remove("./Filtered Tweets Positive.txt")
-            os.remove("./Filtered Tweets Negative.txt")
-            
-    
-    perform_classifier()    
+#    previous_input_was = input("Do you want to run the long version, which figures out the right amount of training etc automatically?") in ('y','yes','Y','Yes','YES')
+#    
+#    if input("Do you want to start completely from scratch?") in ('y','yes','Y','Yes','YES'):
+#        remove_zwischengespeichertes()
+#        if is_for_trump:
+#            create_folder("Tweets")
+#            run_all() #from downloadandpreprocess
+#            create_from_johannes("./")
+#            os.remove("./Trumpliker.txt")
+#            os.remove("./Trumphater.txt")
+#            os.remove("./Filtered Tweets Positive.txt")
+#            os.remove("./Filtered Tweets Negative.txt")
+#            
+#    
+#    perform_classifier()    
 
 
-#    datset = load_dataset(config.use_w2v, False)
-#    print(datset.return_all()[0][:200])
+    
+    datset = load_dataset(config.use_w2v, False)
+    
+
     
 
     

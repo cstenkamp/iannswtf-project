@@ -9,6 +9,7 @@ from scipy.spatial.distance import cosine
 import numpy as np
 import os
 import collections
+import tensorflow as tf
 
 
 class thedataset(object):
@@ -171,30 +172,69 @@ class thedataset(object):
         str = str.replace(" <SuperExclamation>", "!!!")
         print(str)
         
-        
-    def return_all(self):
-        trains = []
-        for string in self.trainreviews:
-            for word in string:
-                trains.append(word)
-            trains.append("<EOS>")
-        tests = []
-        for string in self.testreviews:
-            for word in string:
-                tests.append(word)
-            tests.append("<EOS>")
-        valids = []
-        for string in self.validreviews:
-            for word in string:
-                valids.append(word)
-            valids.append("<EOS>")
+
+
+    def read_words_as_id(self, where): #pendant to _file_to_word_ids
+        result = []
+        for string in where:
+             for word in string:
+                result.append(word)
+             result.append("1")
+        return result
+    
+    
+    def read_words(self, where): #pendant to _read_words
+        result = []
+        for string in where:
+             for word in string:
+                result.append(self.uplook[word])
+             result.append("<EOS>")
+        return result
+    
+    
+    def return_all(self): #pendant to ptb_raw_data
+        trains = self.read_words_as_id(self.trainreviews)
+        tests = self.read_words_as_id(self.testreviews)
+        valids = self.read_words_as_id(self.validreviews)
         return trains, tests, valids, self.ohnum
 
 
+    def build_vocab(self): #pendant to _build_vocab
+        return self.lookup
 
-    
+    #TODO: es kann sein dass das hier in der selben reihenfolge sein muss wie die zahlen!
+    def get_vocab(self): #pendant to get_vocab
+        return list(self.lookup.keys())
 
 
+    #TODO: diese sollte simply replaced werden sobald das ins input-dict kommt!!
+    def producer(raw_data, batch_size, num_steps, name=None, graph=None):
+      if graph is None:
+          graph = tf.Graph()
+      with graph.as_default():
+          with tf.name_scope(name, "Producer", [raw_data, batch_size, num_steps]):
+            raw_data = tf.convert_to_tensor(raw_data, name="raw_data", dtype=tf.int32)
+        
+            data_len = tf.size(raw_data)
+            batch_len = data_len // batch_size
+            data = tf.reshape(raw_data[0 : batch_size * batch_len],
+                              [batch_size, batch_len])
+        
+            epoch_size = (batch_len - 1) // num_steps
+            assertion = tf.assert_positive(
+                epoch_size,
+                message="epoch_size == 0, decrease batch_size or num_steps")
+            with tf.control_dependencies([assertion]):
+              epoch_size = tf.identity(epoch_size, name="epoch_size")
+        
+            i = tf.train.range_input_producer(epoch_size, shuffle=False).dequeue()
+            x = tf.strided_slice(data, [0, i * num_steps],
+                                 [batch_size, (i + 1) * num_steps])
+            x.set_shape([batch_size, num_steps])
+            y = tf.strided_slice(data, [0, i * num_steps + 1],
+                                 [batch_size, (i + 1) * num_steps + 1])
+            y.set_shape([batch_size, num_steps])
+            return x, y
 
 
 
@@ -204,7 +244,7 @@ class thedataset(object):
 def make_dataset(whichsets = [True, True, True], config=None):
     assert os.path.exists(config.setpath)
     allwords = {}
-    wordcount = 1
+    wordcount = 2
     datasets = [config.TRAINNAME, config.TESTNAME, config.VALIDATIONNAME]
     
     #first we look how often each word occurs, to delete single occurences.
@@ -242,8 +282,9 @@ def make_dataset(whichsets = [True, True, True], config=None):
                                 wordcount = wordcount +1
     #print(allwords)            
     
-    #the token for single occurences is "<UNK>"
+    #the token for single occurences is "<UNK>", the one for end of sentence (if needed) is reserved to 1
     allwords["<UNK>"] = 0
+    allwords["<EOS>"] = 1            
     reverse_dictionary = dict(zip(allwords.values(), allwords.keys()))
         
     #now we make every ratings-string to an array of the respective numbers.

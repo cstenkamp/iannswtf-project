@@ -64,13 +64,16 @@ flags.DEFINE_bool("use_fp16", False,"Train using 16-bit floats instead of 32bit 
 FLAGS = flags.FLAGS
 
     
-class PTBInput(object):
-  """The input data."""
+class PTBInput(object): #I need to be replaced by input dictionary
   def __init__(self, config, data, name=None, graph=None):
-    self.batch_size = batch_size = config.batch_size
-    self.num_steps = num_steps = config.num_steps
+    num_steps = config.num_steps
+    batch_size = config.batch_size
     self.epoch_size = ((len(data) // batch_size) - 1) // num_steps
     self.input_data, self.targets = reader.ptb_producer(data, batch_size, num_steps, name=name, graph=graph)
+
+
+def get_epochsize(data, batch_size, num_steps):
+    return ((len(data) // batch_size) - 1) // num_steps
 
 ###############################################################################
 
@@ -78,19 +81,17 @@ class PTBModel(object):
     
   def __init__(self, is_training, config, input_=None):
       
-    if input_ is not None:  
-        self._input = input_
-        batch_size = input_.batch_size
-        num_steps = input_.num_steps
-    else:
-        batch_size = config.batch_size
-        num_steps = config.num_steps   
-        self._input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
-        self._targets = tf.placeholder(tf.int32, [batch_size, num_steps])     
-        
+    batch_size = config.batch_size
+    num_steps = config.num_steps   
     size = config.hidden_size
     vocab_size = config.vocab_size
 
+    if input_ is not None:  
+        self._input = input_
+    else:
+        self._input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
+        self._targets = tf.placeholder(tf.int32, [batch_size, num_steps])     
+        
       
     if is_training:
         lstm_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(size, forget_bias=0.0, state_is_tuple=True), output_keep_prob=config.keep_prob)
@@ -101,7 +102,6 @@ class PTBModel(object):
 
     #since in our LSTM state_is_tuple, we have to deal with the initial state differently.
     self._initial_state = cell.zero_state(batch_size, tf.float32)
-    #self._initial_state = tf.convert_to_tensor(self._initial_state) 
 
     with tf.device("/cpu:0"):
       embedding = tf.get_variable("embedding", [vocab_size, size], dtype=tf.float32)
@@ -264,7 +264,7 @@ class SmallGenConfig(object):
 
 ###############################################################################
 
-def run_epoch(session, model, eval_op=None, verbose=False):
+def run_epoch(session, model, config, eval_op=None, verbose=False):
   """Runs the model on the given data."""
   start_time = time.time()
   costs = 0.0
@@ -286,12 +286,12 @@ def run_epoch(session, model, eval_op=None, verbose=False):
     state = vals["final_state"]
 
     costs += cost
-    iters += model.input.num_steps
+    iters += config.num_steps
 
     if verbose and step % (model.input.epoch_size // 10) == 10:
       print("%.3f perplexity: %.3f speed: %.0f wps" %
             (step * 1.0 / model.input.epoch_size, np.exp(costs / iters),
-             iters * model.input.batch_size / (time.time() - start_time)))
+             iters * config.batch_size / (time.time() - start_time)))
 
   return np.exp(costs / iters)
 
@@ -322,9 +322,9 @@ def sample(a, temperature=1.0):
   return len(a)-1 
 
 
-def generate_text(train_path, model_path, num_sentences, modelinput, name, graph, vocab):
+def generate_text(train_path, model_path, num_sentences, modelinput, name, graph, vocab, config):
+    
   gen_config = SmallGenConfig()
-
 
   with graph.as_default():
     initializer = tf.random_uniform_initializer(-gen_config.init_scale,gen_config.init_scale)  
@@ -334,9 +334,6 @@ def generate_text(train_path, model_path, num_sentences, modelinput, name, graph
 
 
     with tf.Session() as session:
-    
-        # Restore variables from disk.
-        
         saver = tf.train.Saver() 
         ckpt = tf.train.get_checkpoint_state(model_path) 
         if ckpt and ckpt.model_checkpoint_path:
@@ -347,26 +344,43 @@ def generate_text(train_path, model_path, num_sentences, modelinput, name, graph
         
         words = vocab
             
-        state = m.initial_state
+        state = session.run(m.initial_state)
+
         x = 2 # the id for '<eos>' from the training set
         input = np.matrix([[x]])  # a 2D numpy matrix 
+        
+        #
+        feed_dict = {}
+        for i, (c, h) in enumerate(m.initial_state):
+          feed_dict[c] = state[i].c
+          feed_dict[h] = state[i].h        
+        
+        feed_dict[m._input_data] = input
+        #
     
         text = ""
-        count = 0
-        while count < num_sentences:
-          output_probs, state = session.run([m.output_probs, m.final_state],
-                                       {m._input_data: input, #alternativ: das hier weg.
-                                        })#m._initial_state: state})
-          x = sample(output_probs[0], 0.9)
-          if words[x]=="<eos>":
-            text += ".\n\n"
-            count += 1
-          else:
-            text += " " + words[x]
-          # now feed this new word as input into the next iteration
-          input = np.matrix([[x]]) 
+        sentencount = 0
+        newsentence = True
+        while sentencount < num_sentences:
+            if newsentence:
+                output_probs, state = session.run([m.output_probs, m.final_state], feed_dict)
+                newsentence = False
+            else:
+                output_probs, state = session.run([m.output_probs, m.final_state],{m._input_data: input})          
+                
+            x = sample(output_probs[0], 0.9)
+         
+            if words[x]=="<eos>":
+                text += ".\n\n"
+                sentencount += 1
+                newsentence = True
+            else:
+                text += " " + words[x]
+            # now feed this new word as input into the next iteration
+            input = np.matrix([[x]]) 
           
         print(text)
+    
   return
 
 ###############################################################################
@@ -374,6 +388,8 @@ def generate_text(train_path, model_path, num_sentences, modelinput, name, graph
 def main(_):
   if not FLAGS.data_path:
     raise ValueError("Must set --data_path to PTB data directory")
+
+  graph = tf.Graph()
 
   raw_data = reader.ptb_raw_data(FLAGS.data_path)
  #raw_data = dataset.return_all()
@@ -384,24 +400,25 @@ def main(_):
   eval_config.batch_size = 1
   eval_config.num_steps = 1
 
-  with tf.Graph().as_default():
+  with graph.as_default():
     initializer = tf.random_uniform_initializer(-config.init_scale, config.init_scale)
 
     with tf.name_scope("Train"):
-      train_input = PTBInput(config=config, data=train_data, name="TrainInput") #train_data = reader.ptb_raw_data("simple-examples/data")
+      train_input = PTBInput(config=config, data=train_data, name="TrainInput", graph=graph) #train_data = reader.ptb_raw_data("simple-examples/data")
+      #epochsize = get_epochsize(train_data, config.batch_size, config.num_steps)
       with tf.variable_scope("Model", reuse=None, initializer=initializer):
         m = PTBModel(is_training=True, config=config, input_=train_input)
       tf.summary.scalar("Training Loss", m.cost)
       tf.summary.scalar("Learning Rate", m.lr)
 
     with tf.name_scope("Valid"):
-      valid_input = PTBInput(config=config, data=valid_data, name="ValidInput")
+      valid_input = PTBInput(config=config, data=valid_data, name="ValidInput", graph=graph)
       with tf.variable_scope("Model", reuse=True, initializer=initializer):
         mvalid = PTBModel(is_training=False, config=config, input_=valid_input)
       tf.summary.scalar("Validation Loss", mvalid.cost)
 
     with tf.name_scope("Test"):
-      test_input = PTBInput(config=eval_config, data=test_data, name="TestInput")
+      test_input = PTBInput(config=eval_config, data=test_data, name="TestInput", graph=graph)
       with tf.variable_scope("Model", reuse=True, initializer=initializer):
         mtest = PTBModel(is_training=False, config=eval_config, input_=test_input)
 
@@ -412,12 +429,12 @@ def main(_):
         m.assign_lr(session, config.learning_rate * lr_decay)
 
         print("Epoch: %d Learning rate: %.3f" % (i + 1, session.run(m.lr)))
-        train_perplexity = run_epoch(session, m, eval_op=m.train_op, verbose=True)
+        train_perplexity = run_epoch(session, m, config, eval_op=m.train_op, verbose=True)
         print("Epoch: %d Train Perplexity: %.3f" % (i + 1, train_perplexity))
-        valid_perplexity = run_epoch(session, mvalid)
+        valid_perplexity = run_epoch(session, mvalid, config)
         print("Epoch: %d Valid Perplexity: %.3f" % (i + 1, valid_perplexity))
 
-      test_perplexity = run_epoch(session, mtest)
+      test_perplexity = run_epoch(session, mtest, config)
       print("Test Perplexity: %.3f" % test_perplexity)
 
       if FLAGS.save_path:
@@ -433,6 +450,7 @@ if __name__ == "__main__":
     config = SmallGenConfig()
     raw_data = reader.ptb_raw_data("./simple-examples/data")
     train_data, valid_data, test_data, _ = raw_data
+    #epochsize = get_epochsize(train_data, config.batch_size, config.num_steps)
     graph = tf.Graph()
     gen_input = PTBInput(config=config, data=train_data, name="Model", graph=graph)
-    generate_text("./simple-examples/data","./save/", 2, gen_input, "Model", graph, vocab)
+    generate_text("./simple-examples/data","./save/", 6, gen_input, "Model", graph, vocab, config)

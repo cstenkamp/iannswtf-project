@@ -28,7 +28,9 @@ GENERELL
 -vielleicht vielleicht vielleicht usernamen durch nen generelles user-token ersetzen? Oder nach kategorie? Oder 2: retweet, antweet?
 -den langen expressive mode (siehe erwartungshorizont)
 -einen generator schreiben der zufällige strings macht, und das halt als negative input für GAN??
-
+-nach dem generator muss noch ein skript laufen dass die <unks> wegmacht... :/
+-Die länge des strings per wahrscheinlichkeitsverteilung über dingsi
+-label the motherfucking graphs
 
 WE SEE
 -when using pretrained w2v, it starts at 75% accuracy!
