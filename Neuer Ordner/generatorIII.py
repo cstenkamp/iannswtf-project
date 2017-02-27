@@ -63,10 +63,6 @@ flags.DEFINE_string("save_path", None,"Model output directory.")
 flags.DEFINE_bool("use_fp16", False,"Train using 16-bit floats instead of 32bit floats")
 FLAGS = flags.FLAGS
 
-
-def data_type():
-  return tf.float16 if FLAGS.use_fp16 else tf.float32
-
     
 class PTBInput(object):
   """The input data."""
@@ -80,46 +76,63 @@ class PTBInput(object):
 
 class PTBModel(object):
     
-  def __init__(self, is_training, config, input_):
-    self._input = input_
-    batch_size = input_.batch_size
-    num_steps = input_.num_steps
+  def __init__(self, is_training, config, input_=None):
+      
+    if input_ is not None:  
+        self._input = input_
+        batch_size = input_.batch_size
+        num_steps = input_.num_steps
+    else:
+        batch_size = config.batch_size
+        num_steps = config.num_steps   
+        self._input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
+        self._targets = tf.placeholder(tf.int32, [batch_size, num_steps])     
+        
     size = config.hidden_size
     vocab_size = config.vocab_size
 
-  
+      
     if is_training:
-        attn_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(size, forget_bias=0.0, state_is_tuple=True), output_keep_prob=config.keep_prob)
+        lstm_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(size, forget_bias=0.0, state_is_tuple=True), output_keep_prob=config.keep_prob)
     else:
-        attn_cell = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=0.0, state_is_tuple=True)
+        lstm_cell = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=0.0, state_is_tuple=True)
         
-    cell = tf.contrib.rnn.MultiRNNCell([attn_cell for _ in range(config.num_layers)], state_is_tuple=True)        
+    cell = tf.contrib.rnn.MultiRNNCell([lstm_cell for _ in range(config.num_layers)], state_is_tuple=True)        
 
-    self._initial_state = cell.zero_state(batch_size, data_type())
+    #since in our LSTM state_is_tuple, we have to deal with the initial state differently.
+    self._initial_state = cell.zero_state(batch_size, tf.float32)
+    #self._initial_state = tf.convert_to_tensor(self._initial_state) 
 
     with tf.device("/cpu:0"):
-      embedding = tf.get_variable("embedding", [vocab_size, size], dtype=data_type())
-      inputs = tf.nn.embedding_lookup(embedding, input_.input_data)
+      embedding = tf.get_variable("embedding", [vocab_size, size], dtype=tf.float32)
+      if input_ is not None:
+          inputs = tf.nn.embedding_lookup(embedding, input_.input_data)
+      else:
+          inputs = tf.nn.embedding_lookup(embedding, self._input_data)
 
     if is_training:
       inputs = tf.nn.dropout(inputs, config.keep_prob)
 
 
     inputs = tf.unstack(inputs, num=num_steps, axis=1)
-    outputs, state = tf.contrib.rnn.static_rnn(cell, inputs, initial_state=self._initial_state) #tf.contrib.rnn.static_rnn #tf.nn.dynamic_rnn
+    outputs, state = tf.contrib.rnn.static_rnn(cell, inputs, initial_state=self._initial_state) 
 
 
     output = tf.reshape(tf.concat(outputs, 1), [-1, size])
-    softmax_w = tf.get_variable("softmax_w", [size, vocab_size], dtype=data_type())
-    softmax_b = tf.get_variable("softmax_b", [vocab_size], dtype=data_type())
+    softmax_w = tf.get_variable("softmax_w", [size, vocab_size], dtype=tf.float32)
+    softmax_b = tf.get_variable("softmax_b", [vocab_size], dtype=tf.float32)
     logits = tf.matmul(output, softmax_w) + softmax_b
                       
     self._output_probs = tf.nn.softmax(logits)              
     
-    loss = tf.contrib.legacy_seq2seq.sequence_loss_by_example(
-        [logits],
-        [tf.reshape(input_.targets, [-1])],
-        [tf.ones([batch_size * num_steps], dtype=data_type())])
+    if input_ is not None:
+        loss = tf.contrib.legacy_seq2seq.sequence_loss_by_example([logits], [tf.reshape(input_.targets, [-1])],
+                                                                  [tf.ones([batch_size * num_steps], dtype=tf.float32)])
+    else:
+        loss = tf.contrib.legacy_seq2seq.sequence_loss_by_example([logits], [tf.reshape(self._targets, [-1])],
+                                                                  [tf.ones([batch_size * num_steps], dtype=tf.float32)], vocab_size)
+       
+        
     self._cost = cost = tf.reduce_sum(loss) / batch_size
     self._final_state = state
 
@@ -309,7 +322,7 @@ def sample(a, temperature=1.0):
   return len(a)-1 
 
 
-def generate_text(train_path, model_path, num_sentences, modelinput, name, graph):
+def generate_text(train_path, model_path, num_sentences, modelinput, name, graph, vocab):
   gen_config = SmallGenConfig()
 
 
@@ -317,20 +330,24 @@ def generate_text(train_path, model_path, num_sentences, modelinput, name, graph
     initializer = tf.random_uniform_initializer(-gen_config.init_scale,gen_config.init_scale)  
     with tf.name_scope("Generator"):
       with tf.variable_scope(name, reuse=None, initializer=initializer):
-        m = PTBModel(is_training=False, config=config, input_=modelinput)
+        m = PTBModel(is_training=False, config=config) #alternativ: hier input_ = modelinput
 
 
-    sv = tf.train.Supervisor(logdir="./save")
-    with sv.managed_session() as session:
+    with tf.Session() as session:
     
         # Restore variables from disk.
+        
         saver = tf.train.Saver() 
-        saver.restore(session, model_path)
+        ckpt = tf.train.get_checkpoint_state(model_path) 
+        if ckpt and ckpt.model_checkpoint_path:
+            print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+            saver.restore(session, ckpt.model_checkpoint_path)
+            
         print("Model restored from file " + model_path)
         
-        words = reader.get_vocab(train_path)
-    
-        state = m.initial_state.eval()
+        words = vocab
+            
+        state = m.initial_state
         x = 2 # the id for '<eos>' from the training set
         input = np.matrix([[x]])  # a 2D numpy matrix 
     
@@ -338,8 +355,8 @@ def generate_text(train_path, model_path, num_sentences, modelinput, name, graph
         count = 0
         while count < num_sentences:
           output_probs, state = session.run([m.output_probs, m.final_state],
-                                       {m.input_data: input,
-                                        m.initial_state: state})
+                                       {m._input_data: input, #alternativ: das hier weg.
+                                        })#m._initial_state: state})
           x = sample(output_probs[0], 0.9)
           if words[x]=="<eos>":
             text += ".\n\n"
@@ -412,9 +429,10 @@ def main(_):
 
 if __name__ == "__main__":
 #  tf.app.run()
+    vocab = reader.get_vocab("./simple-examples/data/ptb.train.txt")
     config = SmallGenConfig()
     raw_data = reader.ptb_raw_data("./simple-examples/data")
     train_data, valid_data, test_data, _ = raw_data
     graph = tf.Graph()
-    gen_input = PTBInput(config=config, data=train_data, name="TrainInput", graph=graph)
-    generate_text("./simple-examples/data","./save", 2, gen_input, "TrainInput", graph)
+    gen_input = PTBInput(config=config, data=train_data, name="Model", graph=graph)
+    generate_text("./simple-examples/data","./save/", 2, gen_input, "Model", graph, vocab)
