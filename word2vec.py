@@ -24,11 +24,11 @@ def batch_buffer_append(config, dataset, firsttime=False):
         whichset = currset[dindex[0]] 
         whereinset = permutations[whichset][(dindex[1][whichset])]
         if whichset == 0:   #wir haben ne zufällige reihenfolge, laut welcher aus train, test oder valid gezogen wird...
-            currreview = dataset.trainreviews[whereinset]
+            currreview = dataset.trainreviews[whereinset % len(dataset.trainreviews)]
         elif whichset == 1: #(allerdings 0 mal für set x falls set x nicht drankommen soll...)
-            currreview = dataset.testreviews[whereinset]
+            currreview = dataset.testreviews[whereinset % len(dataset.testreviews)]
         elif whichset == 2: #und innerhalb der 3 sets gibt es einen eigen fortlaufenden permutationsindex, sodass jedes element 1 mal dran kommt.
-            currreview = dataset.validreviews[whereinset]
+            currreview = dataset.validreviews[whereinset % len(dataset.validreviews)]
         toappend = currreview[dindex[2]]      
         dindex[2] += 1
         w2vsamplecount = 0    

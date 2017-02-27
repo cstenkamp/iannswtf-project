@@ -238,12 +238,13 @@ def make_dataset(whichsets = [True, True, True], config=None):
                 for line in infile:
                     words = line.split()
                     currentrating = []
-                    for word in words:
-                        try:
-                            currentrating.append(allwords[word])
-                        except KeyError:
-                            currentrating.append(allwords["<UNK>"])
-                    ratings[currset].append(currentrating)   
+                    if len(words) > 1:
+                        for word in words:
+                            try:
+                                currentrating.append(allwords[word])
+                            except KeyError:
+                                currentrating.append(allwords["<UNK>"])
+                        ratings[currset].append(currentrating)   
             
             
     #also, we make an array of the ratings

@@ -21,6 +21,7 @@ import word2vec
 from lstmclass import plot_test_and_train, test_one_sample, validate, train_and_test
 from create_random import random_strings
 from downloadAndPreprocess import create_folder, run_all
+from create_dataset import create_from_johannes
 
 #==============================================================================
 
@@ -60,8 +61,8 @@ class Config_trumpdat(object):
     use_w2v = True
     embedding_size = 128
     num_steps_w2v = 100001 
-    maxlen_percentage = 1
-    minlen_abs = 10
+    maxlen_percentage = .90
+    minlen_abs = 15
     TRAIN_STEPS = 18
     longruntrials = 16
     batch_size = 48
@@ -308,8 +309,11 @@ if __name__ == '__main__':
         if is_for_trump:
             create_folder("Tweets")
             run_all() #from downloadandpreprocess
+            create_from_johannes("./")
             os.remove("./Trumpliker.txt")
             os.remove("./Trumphater.txt")
+            os.remove("./Filtered Tweets Positive.txt")
+            os.remove("./Filtered Tweets Negative.txt")
             
     
     perform_classifier()    

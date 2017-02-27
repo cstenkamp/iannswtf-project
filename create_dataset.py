@@ -70,8 +70,8 @@ def create_from_johannes(frompath, positive="Filtered Tweets positive.txt", nega
     files = ["train","test","validation"]
     target_appendix = "-target"    
 
-    assert line_count(frompath+positive) >= amount_test + amount_valid + amount_train
-    assert line_count(frompath+negative) >= amount_test + amount_valid + amount_train                     
+    assert line_count(frompath+positive) >= (amount_test + amount_valid + amount_train)/2
+    assert line_count(frompath+negative) >= (amount_test + amount_valid + amount_train)/2
     counter = 0
     sets = [[],[],[]]
     target = [[],[],[]]
@@ -107,4 +107,4 @@ def create_from_johannes(frompath, positive="Filtered Tweets positive.txt", nega
         
         
 if __name__ == '__main__':
-    create_from_johannes(frompath="./Johannes/")
+    create_from_johannes(frompath="./")
