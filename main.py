@@ -22,6 +22,7 @@ from lstmclass import plot_test_and_train, test_one_sample, validate, train_and_
 from create_random import random_strings
 from downloadAndPreprocess import create_folder, run_all
 from create_dataset import create_from_johannes
+import generatornetwork
 
 #==============================================================================
 
@@ -322,6 +323,7 @@ if __name__ == '__main__':
     
     datset = load_dataset(config.use_w2v, False)
     
+    generatornetwork.main(datset)
 
     
 

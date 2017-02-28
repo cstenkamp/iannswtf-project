@@ -9,7 +9,6 @@ from scipy.spatial.distance import cosine
 import numpy as np
 import os
 import collections
-import tensorflow as tf
 
 
 class thedataset(object):
@@ -192,10 +191,19 @@ class thedataset(object):
         return result
     
     
-    def return_all(self): #pendant to ptb_raw_data
-        trains = self.read_words_as_id(self.trainreviews)
-        tests = self.read_words_as_id(self.testreviews)
-        valids = self.read_words_as_id(self.validreviews)
+    def return_all(self, only_positive=False): #pendant to ptb_raw_data
+        if only_positive:
+            tmptr = [self.trainreviews[i] for i in range(len(self.traintargets)) if self.traintargets[i]==1]
+            trains = self.read_words_as_id(tmptr)
+            tmpte = [self.testreviews[i] for i in range(len(self.testtargets)) if self.testtargets[i]==1]
+            tests = self.read_words_as_id(tmpte)
+            tmpva = [self.validreviews[i] for i in range(len(self.validtargets)) if self.validtargets[i]==1]
+            valids = self.read_words_as_id(tmpva)
+        else:
+            trains = self.read_words_as_id(self.trainreviews)
+            tests = self.read_words_as_id(self.testreviews)
+            valids = self.read_words_as_id(self.validreviews)
+            
         return trains, tests, valids, self.ohnum
 
 
@@ -207,7 +215,7 @@ class thedataset(object):
         return list(self.lookup.keys())
 
 
-    def grammar_iterator(raw_data, batch_size, num_steps):
+    def grammar_iterator(self, raw_data, batch_size, num_steps):
       raw_data = np.array(raw_data, dtype=np.int32)
       data_len = len(raw_data)
       batch_len = data_len // batch_size

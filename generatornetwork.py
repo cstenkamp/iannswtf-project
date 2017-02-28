@@ -4,14 +4,13 @@ import numpy as np
 import tensorflow as tf
 import copy
 
-import reader
+#====own functions====
+import file_functions
 
+UNKINDEX = 0
+EOSINDEX = 1
 
-UNKINDEX = 1
-EOSINDEX = 2
-
-data_path = "./Neuer Ordner/simple-examples/data"
-save_path = "./Neuer Ordner/save/"
+save_path = "./save/"
 
 class SmallConfig(object):
   """Small config."""
@@ -58,9 +57,9 @@ class LanguageModel(object):
         size = config.hidden_size
         vocab_size = config.vocab_size
     
-        self.input_data = tf.placeholder(tf.int32, [self.batch_size, self.num_steps])
+        self.input_data = tf.placeholder(tf.int32, [self.batch_size, self.num_steps], name="inputdata")
         if not is_generator:
-            self.targets = tf.placeholder(tf.int32, [self.batch_size, self.num_steps])      
+            self.targets = tf.placeholder(tf.int32, [self.batch_size, self.num_steps], name="targets")      
             
         if is_training:
             lstm_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(size, forget_bias=0.0, state_is_tuple=True), output_keep_prob=config.keep_prob)
@@ -119,7 +118,7 @@ class LanguageModel(object):
         start_time = time.time()
         costs = 0.0
         iters = 0
-        state = session.run(self.initial_state, {self.input_data: np.zeros([20,20]), self.targets: np.zeros([20,20])})
+        state = session.run(self.initial_state)
      
         fetches = {"cost": self.cost, "final_state": self.final_state,}
         if eval_op is not None:
@@ -246,11 +245,19 @@ def main_generate(savepath, vocab, howmany, nounk=True, avglen=0):
                     ckpt = tf.train.get_checkpoint_state(savepath) 
                     if ckpt and ckpt.model_checkpoint_path:
                         print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-                        saver.restore(session, ckpt.model_checkpoint_path)                
+                        saver.restore(session, ckpt.model_checkpoint_path)  
+                        iteration = file_functions.read_iteration(path = save_path)
+                        print(iteration,"iterations ran already.") 
                         
                         texts = m.generate_text(session, config, howmany, nounk, avglen)
                         
                         print(print_pretty(texts, vocab))
+                    else:
+                        print("Sorry, no model to load!")
+                        
+                                       
+                        
+                        
                         
 
 def print_pretty(texts, vocab):
@@ -264,11 +271,13 @@ def print_pretty(texts, vocab):
 
 
 
-def main():
+def main(dataset):
+    config.vocab_size = dataset.ohnum
+    iterator = dataset.grammar_iterator
+    
     graph = tf.Graph()
 
-    raw_data = reader.ptb_raw_data(data_path)
-    #raw_data = dataset.return_all()
+    raw_data = dataset.return_all(only_positive=True) #TODO true hier nur bei trumpdata
     train_data, valid_data, test_data, _ = raw_data  
 
     eval_config = copy.deepcopy(config)
@@ -293,30 +302,46 @@ def main():
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
               mtest = LanguageModel(is_training=False, config=eval_config)
 
-        sv = tf.train.Supervisor(logdir=save_path)
-        with sv.managed_session() as session:
-            for i in range(config.max_max_epoch):
-                lr_decay = config.lr_decay ** max(i + 1 - config.max_epoch, 0.0)
+        with tf.Session() as session:
+            saver = tf.train.Saver() 
+            
+            ckpt = tf.train.get_checkpoint_state(save_path) 
+            if ckpt and ckpt.model_checkpoint_path:
+                print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+                saver.restore(session, ckpt.model_checkpoint_path)
+                iteration = file_functions.read_iteration(path = save_path)
+                print(iteration,"iterations ran already.")
+            else:
+                print("Created model with fresh parameters.")
+                init = tf.global_variables_initializer()
+                init.run()
+                iteration = 0
+                
+            print("Running for",config.max_max_epoch-iteration,"(further) iterations.")
+            for i in range(config.max_max_epoch-iteration):
+                lr_decay = config.lr_decay ** max(iteration+i+1 - config.max_epoch, 0.0)
                 m.assign_lr(session, config.learning_rate * lr_decay)
 
-                iterator = reader.ptb_iterator
                 print("Epoch: %d Learning rate: %.3f" % (i + 1, session.run(m.lr)))
                 train_perplexity = m.run_epoch(session, config, train_data, iterator, eval_op=m.train_op, verbose=True)
                 print("Epoch: %d Train Perplexity: %.3f" % (i + 1, train_perplexity))
-                valid_perplexity = mvalid.run_epoch(session, mvalid, config, valid_data, iterator)
+                valid_perplexity = mvalid.run_epoch(session, config, valid_data, iterator)
                 print("Epoch: %d Valid Perplexity: %.3f" % (i + 1, valid_perplexity))
+                
+                if save_path != "":
+                    print("Saving model to %s." % save_path)
+                    saver.save(session, save_path)
+                    file_functions.write_iteration(number = iteration+i+1, path=save_path)
+                    
 
             test_perplexity = mtest.run_epoch(session, config, test_data, iterator)
             print("Test Perplexity: %.3f" % test_perplexity)
 
-            if save_path != "":
-                print("Saving model to %s." % save_path)
-                sv.saver.save(session, save_path, global_step=sv.global_step)
 
 
 ###############################################################################
 
-if __name__ == "__main__":
-    main()
+#if __name__ == "__main__":
+    #main()
     #main_generate(save_path, reader.get_vocab("./Neuer Ordner/simple-examples/data/ptb.train.txt"), 40, nounk = True, avglen = 20)
     
