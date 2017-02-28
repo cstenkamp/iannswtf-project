@@ -193,25 +193,23 @@ def sample(a, temperature=1.0):
   return len(a)-1 
 
 
-def generate_text(train_path, model_path, num_sentences, modelinput, name, graph, vocab, config):
+def generate_text(config, vocab, graph, savepath, num_sentences):
     
-  gen_config = SmallGenConfig()
-
   with graph.as_default():
-    initializer = tf.random_uniform_initializer(-gen_config.init_scale,gen_config.init_scale)  
+    initializer = tf.random_uniform_initializer(-config.init_scale,config.init_scale)  
     with tf.name_scope("Generator"):
-      with tf.variable_scope(name, reuse=None, initializer=initializer):
-        m = PTBModel(is_training=False, config=config) #alternativ: hier input_ptb = modelinput
+      with tf.variable_scope("Model", reuse=None, initializer=initializer):
+        m = PTBModel(is_training=False, config=config, is_generator=True) 
 
 
     with tf.Session() as session:
         saver = tf.train.Saver() 
-        ckpt = tf.train.get_checkpoint_state(model_path) 
+        ckpt = tf.train.get_checkpoint_state(savepath) 
         if ckpt and ckpt.model_checkpoint_path:
             print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
             saver.restore(session, ckpt.model_checkpoint_path)
             
-        print("Model restored from file " + model_path)
+        print("Model restored from file " + savepath)
         
         words = vocab
             
@@ -226,7 +224,7 @@ def generate_text(train_path, model_path, num_sentences, modelinput, name, graph
           feed_dict[c] = state[i].c
           feed_dict[h] = state[i].h        
         
-        feed_dict[m._input_data] = input
+        feed_dict[m.input_data] = input
         #
     
         text = ""
@@ -237,7 +235,7 @@ def generate_text(train_path, model_path, num_sentences, modelinput, name, graph
                 output_probs, state = session.run([m.output_probs, m.final_state], feed_dict)
                 newsentence = False
             else:
-                output_probs, state = session.run([m.output_probs, m.final_state],{m._input_data: input})          
+                output_probs, state = session.run([m.output_probs, m.final_state],{m.input_data: input})          
                 
             x = sample(output_probs[0], 0.9)
          
@@ -310,12 +308,10 @@ def main():
 ###############################################################################
 
 if __name__ == "__main__":
-    main()
-#    vocab = reader.get_vocab("./simple-examples/data/ptb.train.txt")
-#    config = SmallGenConfig()
-#    raw_data = reader.ptb_raw_data("./simple-examples/data")
-#    train_data, valid_data, test_data, _ = raw_data
-#    #epochsize = get_epochsize(train_data, config.batch_size, config.num_steps)
-#    graph = tf.Graph()
-#    gen_input = PTBInput(config=config, data=train_data, name="Model", graph=graph)
-#    generate_text("./simple-examples/data","./save/", 6, gen_input, "Model", graph, vocab, config)
+#    main()
+    vocab = reader.get_vocab("./simple-examples/data/ptb.train.txt")
+    config = SmallGenConfig()
+    raw_data = reader.ptb_raw_data("./simple-examples/data")
+    train_data, valid_data, test_data, _ = raw_data
+    graph = tf.Graph()
+    generate_text(config, vocab, graph, save_path, 5)
