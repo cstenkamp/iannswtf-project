@@ -148,8 +148,6 @@ class LanguageModel(object):
         return np.exp(costs / iters)
 
 
-
-
     def generate_text(self, session, config, howmany=1, nounk = True, lengmean = 0):
 
         def sample(a, temperature, nounk, noeos=False, eosprob=1):
@@ -186,7 +184,6 @@ class LanguageModel(object):
                     a[EOSINDEX] *= 10
                 return sample(a, temperature, nounk, eosprob=letter/lengmean) #ist am anfang sehr klein, 1 bei avglen, wird immer größer.
                 
-        
         state = session.run(self.initial_state)
         x = EOSINDEX # the id for '<eos>' from the training set #TODO: this.
         input = np.matrix([[x]])  # a 2D numpy matrix 
@@ -235,6 +232,7 @@ class LanguageModel(object):
 def main_generate(savepath, vocab, howmany, nounk=True, avglen=0):
     graph = tf.Graph()
     config = SmallGenConfig()
+    config.vocab_size = len(vocab)+1 #should be dataset.ohnum
     with graph.as_default():
         initializer = tf.random_uniform_initializer(-config.init_scale, config.init_scale)
         with tf.name_scope("Generator"):
@@ -330,7 +328,7 @@ def main(dataset):
                 
                 if save_path != "":
                     print("Saving model to %s." % save_path)
-                    saver.save(session, save_path)
+                    saver.save(session, save_path+"genweights.ckpt")
                     file_functions.write_iteration(number = iteration+i+1, path=save_path)
                     
 

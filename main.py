@@ -323,9 +323,9 @@ if __name__ == '__main__':
     
     datset = load_dataset(config.use_w2v, False)
     
-    generatornetwork.main(datset)
+    #generatornetwork.main(datset)
 
-    
+    generatornetwork.main_generate("./save/", datset.uplook, 40, nounk = True, avglen = 20)
 
     
     print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
