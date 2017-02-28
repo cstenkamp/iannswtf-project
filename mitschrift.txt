@@ -2,6 +2,10 @@ TODO-AKTUELL
 -die ganzen inputs optional als parameter
 -expressive mode noch besser, mit optionalen parametern überall was er printen soll
 -den graph im expressive mode noch labeln
+-noch nen plot für die lange generator-version
+-word2vec noch für den generator
+-die beiden validates thrown noch wenn kein dataset da ist
+-EInstellen können ob er posts mit @ am anfang [und mit @ überhaupt] will
 
 
 DONE:

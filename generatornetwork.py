@@ -1,9 +1,3 @@
-#OK, now the Generative Model. Yay
-#https://arxiv.org/pdf/1609.05473.pdf
-#https://github.com/dennybritz/deeplearning-papernotes/blob/master/notes/seq-gan.md
-
-###############################################################################
-import time
 import random
 import numpy as np
 import tensorflow as tf
@@ -15,25 +9,30 @@ EOSINDEX = 1
 
 
 class LearnConfig(object):
-  """Small config."""
+  """config for learning"""
   learning_rate = 1.0
-  max_grad_norm = 5  #10 bei large
-  num_steps = 20     #20 bei small, 35 bei large
-  max_epoch = 4      #14 bei large
-  max_max_epoch = 6  #55 bei large
-  keep_prob = 0.9    #0.35 bei large
-  lr_decay = 0.5     #1 / 1.15 bei large
+  max_grad_norm = 5  
+  num_steps = 20   
+  max_epoch = 7   
+  max_max_epoch = 20 
+  keep_prob = 0.9  
+  lr_decay = 0.5   
+  min_lr = 0.01
   batch_size = 20
 
 
-class TestGenConfig(LearnConfig):
-  """Tiny config, for testing."""
+class TestConfig(LearnConfig):
+  """config for testing."""
   max_grad_norm = 1
   num_steps = 1
   max_epoch = 1
   max_max_epoch = 1
-  batch_size = 1
   keep_prob = 1
+  
+  
+class GenConfig(TestConfig):
+  """config for generating."""
+  batch_size = 1
 
 
 ###############################################################################
@@ -104,9 +103,8 @@ class LanguageModel(object):
         session.run(self.lr_update, feed_dict={self.new_lr: lr_value, self.input_data: np.zeros([20,20]), self.targets: np.zeros([20,20])})
 
 
-    def run_epoch(self, session, config, data, iterator, eval_op=None, verbose=False):
+    def run_epoch(self, session, config, data, iterator, eval_op=None, printstuff=False):
         epoch_size = ((len(data) // self.batch_size) - 1) // self.num_steps
-        start_time = time.time()
         costs = 0.0
         iters = 0
         state = session.run(self.initial_state)
@@ -132,10 +130,10 @@ class LanguageModel(object):
             costs += cost
             iters += self.num_steps
     
-            if verbose and step % (epoch_size // 10) == 10:
-                print("%.3f perplexity: %.3f speed: %.0f wps" %
-                      (step * 1.0 / epoch_size, np.exp(costs / iters), iters * config.batch_size / (time.time() - start_time)))
-                
+            if printstuff:
+                if step % (epoch_size // 10) == 10:
+                    print("Progress: %d%% \t Loss: %.3f" % ((step * 1.0 / epoch_size)*100, np.exp(costs / iters)), end='\r')
+                    
         return np.exp(costs / iters)
 
 
@@ -222,7 +220,7 @@ class LanguageModel(object):
 
 
 def main_generate(mainconfig, dataset, howmany, nounk=True, avglen=0):
-    config = TestGenConfig()
+    config = GenConfig()
     with tf.Graph().as_default():
         initializer = tf.random_uniform_initializer(-mainconfig.allnetworkinitscale, mainconfig.allnetworkinitscale)
         with tf.name_scope("Generator"):
@@ -255,7 +253,9 @@ def print_pretty(texts, dataset):
 
 
 
-def main(dataset, mainconfig, lmconfig):
+
+
+def run_train_and_valid(dataset, mainconfig, lmconfig):
     iterator = dataset.grammar_iterator
     
     train_data, valid_data, test_data, _ = dataset.return_all(only_positive = mainconfig.is_for_trump)
@@ -266,18 +266,11 @@ def main(dataset, mainconfig, lmconfig):
         with tf.name_scope("Train"):
             with tf.variable_scope("Model", reuse=None, initializer=initializer):
                 m = LanguageModel(mainconfig, dataset, is_training=True, config=lmconfig)
-            tf.summary.scalar("Training Loss", m.cost)
-            tf.summary.scalar("Learning Rate", m.lr)
 
         with tf.name_scope("Valid"):
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
-                mvalid = LanguageModel(mainconfig, dataset, is_training=False, config=lmconfig)
-            tf.summary.scalar("Validation Loss", mvalid.cost)
-
-        with tf.name_scope("Test"):
-            with tf.variable_scope("Model", reuse=True, initializer=initializer):
-              mtest = LanguageModel(mainconfig, dataset, is_training=False, config=TestGenConfig())
-
+                mvalid = LanguageModel(mainconfig, dataset, is_training=False, config=TestConfig())
+                
         with tf.Session() as session:
             saver = tf.train.Saver() 
             
@@ -296,13 +289,13 @@ def main(dataset, mainconfig, lmconfig):
             print("Running for",lmconfig.max_max_epoch-iteration,"(further) iterations.")
             for i in range(lmconfig.max_max_epoch-iteration):
                 lr_decay = lmconfig.lr_decay ** max(iteration+i+1 - lmconfig.max_epoch, 0.0)
-                m.assign_lr(session, lmconfig.learning_rate * lr_decay)
+                m.assign_lr(session, (lmconfig.learning_rate*lr_decay if lmconfig.learning_rate*lr_decay > lmconfig.min_lr else lmconfig.min_lr))
 
-                print("Epoch: %d Learning rate: %.3f" % (i + 1, session.run(m.lr)))
-                train_perplexity = m.run_epoch(session, lmconfig, train_data, iterator, eval_op=m.train_op, verbose=True)
-                print("Epoch: %d Train Perplexity: %.3f" % (i + 1, train_perplexity))
-                valid_perplexity = mvalid.run_epoch(session, lmconfig, valid_data, iterator)
-                print("Epoch: %d Valid Perplexity: %.3f" % (i + 1, valid_perplexity))
+                print("Epoch: %d Learning rate: %.3f" % (iteration+i+1, session.run(m.lr)))
+                train_loss = m.run_epoch(session, lmconfig, train_data, iterator, eval_op=m.train_op, printstuff=True)
+                print("Epoch: %d Training Loss: %.3f" % (iteration+i+1, train_loss))
+                valid_loss = mvalid.run_epoch(session, TestConfig(), valid_data, iterator)
+                print("Epoch: %d Validation Loss: %.3f" % (iteration+i+1, valid_loss))
                 
                 if mainconfig.checkpointpath+"languagemodel/" != "":
                     print("Saving model to %s." % mainconfig.checkpointpath+"languagemodel/")
@@ -310,15 +303,82 @@ def main(dataset, mainconfig, lmconfig):
                     file_functions.write_iteration(number = iteration+i+1, path=mainconfig.checkpointpath+"languagemodel/")
                     
 
-            test_perplexity = mtest.run_epoch(session, lmconfig, test_data, iterator)
-            print("Test Perplexity: %.3f" % test_perplexity)
 
 
 
+def validate(dataset, mainconfig, printstuff = False):
+    iterator = dataset.grammar_iterator
+    _, _, test_data, _ = dataset.return_all(only_positive = mainconfig.is_for_trump)
+    with tf.Graph().as_default():
+        initializer = tf.random_uniform_initializer(-mainconfig.allnetworkinitscale, mainconfig.allnetworkinitscale)    
+        with tf.name_scope("Test"):
+            with tf.variable_scope("Model", reuse=None, initializer=initializer):
+                mest = LanguageModel(mainconfig, dataset, is_training=False, config=TestConfig())
+            
+        with tf.Session() as session:
+            saver = tf.train.Saver() 
+            ckpt = tf.train.get_checkpoint_state(mainconfig.checkpointpath+"languagemodel/") 
+            if ckpt and ckpt.model_checkpoint_path:
+                print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+                saver.restore(session, ckpt.model_checkpoint_path)
+                iteration = file_functions.read_iteration(path = mainconfig.checkpointpath+"languagemodel/")
+                print(iteration,"iterations ran already.")
+            else:
+                print("There is no usable model yet!")
+                return np.inf
+                
+            test_loss = mest.run_epoch(session, TestConfig(), test_data, iterator)
+            if printstuff: print("Test Loss: %.3f" % test_loss)       
+    return test_loss
+
+
+
+
+def run_till_loss_lowerthan(dataset, mainconfig, lmconfig, maxloss=150): #handle this with care, it may fuck your pc up.
+    assert maxloss > 100, "Such a low loss on the Generator is impossible!"
+    if maxloss <= 130:
+        lmconfig.lr_decay = 1 / 1.15
+        lmconfig.keep_prob = 0.66
+        lmconfig.max_grad_norm = 10
+        print("Because you want such a low loss, some parameters were changed.")
+        
+    iterator = dataset.grammar_iterator
+    
+    train_data, valid_data, test_data, _ = dataset.return_all(only_positive = mainconfig.is_for_trump)
+    
+    with tf.Graph().as_default():
+        initializer = tf.random_uniform_initializer(-mainconfig.allnetworkinitscale, mainconfig.allnetworkinitscale)
+
+        with tf.name_scope("Train"):
+            with tf.variable_scope("Model", reuse=None, initializer=initializer):
+                m = LanguageModel(mainconfig, dataset, is_training=True, config=lmconfig)
+
+        with tf.Session() as session:
+            saver = tf.train.Saver() 
+            
+            print("In this mode, we always create a model with fresh parameters!")
+            init = tf.global_variables_initializer()
+            init.run()
+            iteration = 0
+                
+            validloss = np.inf
+            while validloss > maxloss:
+                iteration += 1
+                lr_decay = lmconfig.lr_decay ** max(iteration - lmconfig.max_epoch, 0.0)
+                m.assign_lr(session, lmconfig.learning_rate * lr_decay)
+
+                print("Epoch: %d Learning rate: %.3f" % (iteration, session.run(m.lr)))
+                train_loss = m.run_epoch(session, lmconfig, train_data, iterator, eval_op=m.train_op, printstuff=True)
+                print("Epoch: %d Training Loss: %.3f" % (iteration, train_loss))
+                
+                if mainconfig.checkpointpath+"languagemodel/" != "":
+                    print("Saving model to %s." % mainconfig.checkpointpath+"languagemodel/")
+                    saver.save(session, mainconfig.checkpointpath+"languagemodel/"+"genweights.ckpt")
+                    file_functions.write_iteration(number = iteration, path=mainconfig.checkpointpath+"languagemodel/")
+                    
+                validloss = validate(dataset, mainconfig)
+                print("Validation Loss: %.3f" % validloss)
 ###############################################################################
 
 #if __name__ == "__main__":
-#    config = LearnConfig()
-#    main()
-#    main_generate( reader.get_vocab("./Neuer Ordner/simple-examples/data/ptb.train.txt"), 40, nounk = True, avglen = 20)
-    
+#    run_train_and_valid(datset, config, LearnConfig())

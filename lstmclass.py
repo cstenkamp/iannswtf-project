@@ -243,8 +243,8 @@ def validate(config, dataset, X_validat, y_validat, bkpath = "", is_recognizer=F
                 if bkpath == "": bkpath = config.checkpointpath+subfolder
                 print(file_functions.read_iteration(path = bkpath),"iterations ran already.")
             else:
-                print("uhm, without a model it doesn't work") #TODO: anders
-                exit()
+                print("There is no usable model yet!!") 
+                return 0
             
             if config.use_w2v:
                 session.run(testmodel.embedding.assign(dataset.wordvecs))
@@ -254,8 +254,9 @@ def validate(config, dataset, X_validat, y_validat, bkpath = "", is_recognizer=F
                 
                 
             valid_accuracy = testmodel.run_on(session, X_validat, y_validat, False, is_recognizer)
-            print("Validation Set Accuracy: %.3f" % (valid_accuracy))     
-            
+            print("Validation Set Accuracy: %.3f" % valid_accuracy)     
+    
+   return valid_accuracy
             
             
             
@@ -278,8 +279,8 @@ def test_one_sample(config, dataset, string, is_recognizer=False):
     datset = datset + [0]*(dataset.maxlenstring-len(datset))
     datset = [datset]*config.batch_size 
     data_t = to_one_hot([0]*config.batch_size)
-    
-    if len(string.split()) > dataset.maxlenstring:
+        
+    if len(datset[0]) > dataset.maxlenstring:
         return False
     
     with tf.Graph().as_default(), tf.Session() as session:

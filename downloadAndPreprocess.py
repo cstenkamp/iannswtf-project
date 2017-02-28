@@ -12,12 +12,10 @@ import os
 from pathlib import Path
 
 
-#Twitter API credentials
-consumer_key = "ixvNy9UqSi4nZMXZC51OnJdRo"
-consumer_secret =  "WdU6p2icCQvmQWNwnYokTBIgmElUer3Xs1p4eoty5jIGvkwZfT"
-access_key = "2617326211-Q3OeGSi5sJPaq4mHEGXJd2sPow2epBmLTBbdC0z"
-access_secret = "O6umMNseUdPHJW8pX6CLUgONwhNul2NuD8oNqLoi7HKqL"
+#Create OAuth authentification to read tweets
+from tweepy_credentials import consumer_key, consumer_secret, access_key, access_secret
 
+#Folder location to read in twitter account lists
 acclist = './accountlists/accountlist.txt'
 deacclist = './accountlists/negativeaccountlist.txt'
 
@@ -26,30 +24,31 @@ deacclist = './accountlists/negativeaccountlist.txt'
 '''Here, all parameter necessary to successfully gather, process and manage Tweets are created. This section also runs all other functions'''
 
 def run_all():
+    #to avoid tweets being preprocssed and passed into the final list multiple times, the raw .txt files are ersed in the beginning of each new session.
     if Path("./Trumpliker.txt").is_file():
         os.remove("./Trumpliker.txt")
     if Path("./Trumphater.txt").is_file():
-        os.remove("./Trumphater.txt")    
+        os.remove("./Trumphater.txt")
+    
+    #collecting tweets, merging and then preprocessing them happens once for the list of trump-supporters...
     poslist = read_to_string(acclist)
     for p in poslist:
         get_all_tweets(p)
     mergetxt(True, acclist)
     
+    #...and for unrelated tweets
     neglist = read_to_string(deacclist)
     for n in neglist:
        get_all_tweets(n)
     mergetxt(False, deacclist)
+    
     print('Done!')
-
-def merge_only():
-    mergetxt(True, acclist)
-    mergetxt(False, deacclist)
-
 
 def create_folder(foldername):
     if not os.path.exists(foldername):
         os.makedirs(foldername)
-        
+
+
 def read_to_string(name):
     try:
         array = []
@@ -62,7 +61,9 @@ def read_to_string(name):
         return []
 
 #=============================================================================
-'''This section of the code implements a twitter crawler using tweepy: http://www.tweepy.org/'''
+'''This section of the code implements a twitter crawler using tweepy: http://www.tweepy.org/
+Sections of this code are taken from this tutorial: https://nocodewebscraping.com/twitter-json-examples/
+more specifically from this code: https://drive.google.com/file/d/0Bw1LIIbSl0xuNnJ0N1ppSkRjQjQ/view'''
 
 def get_all_tweets(screen_name):
 
@@ -71,21 +72,26 @@ def get_all_tweets(screen_name):
     api = tweepy.API(auth)
     alltweets = []
     
+    #if tweets of a specific account have already been downloaded, they are not downloaded again
     if os.path.isfile('./Tweets/' + screen_name+'.txt'):
         print('Tweets from '+screen_name+' already collected, moving on...')
         return
     
     print('Downloading Tweets from User: '+screen_name)
+    
+    #200 tweets are collected and then appended into a list
     new_tweets = api.user_timeline(screen_name = screen_name,count=200)
     alltweets.extend(new_tweets)
     oldest = alltweets[-1].id - 1
     
+    #download tweets as long as there are still tweets to download or until the max amount of tweets has been downloaded
     while len(new_tweets) > 0:
         new_tweets = api.user_timeline(screen_name = screen_name,count=200,max_id=oldest)
         alltweets.extend(new_tweets)
         oldest = alltweets[-1].id - 1
         print("...%s tweets downloaded so far" % (len(alltweets)))
-       
+        
+        #when all tweets are downloaded, pass them into a .txt file with the according account name
         file = open('./Tweets/' + screen_name + '.txt', "w", encoding="utf8")
         for status in alltweets:
             json.dump(status.text,file,sort_keys = True,indent = 4)
@@ -95,16 +101,19 @@ def get_all_tweets(screen_name):
     file.close()
 
 #=============================================================================
-'''This section of the code deals with preprocessing and saving Tweets'''
+'''This section of the code deals with preprocessing and saving Tweets into one file'''
 
 
+'''the 'tmp' variable denotes whether the function is used to process data from the list of tweets of trump-supporter
+or unrelated tweets. This holds for later functions as well and prevents unnecessary lines of code'''
 
 def mergetxt(tmp, namelist, folder="./Tweets/"):
     if tmp == True:
         alltxt = 'Trumpliker.txt'
     else:
         alltxt = 'Trumphater.txt'
-        
+    
+    #depending whether tmp is true or false, the raw content of an according .txt file is used for processing
     alltxtfile = open(alltxt,"a")
     merginglist = read_to_string(namelist)
     for f in merginglist:
@@ -114,6 +123,7 @@ def mergetxt(tmp, namelist, folder="./Tweets/"):
     
                                 
 def filterforcontent(tmp, alltwts, folder="./Tweets/"):
+    #again checking for which tweets are being preprocessed to generate a clean tweet list
     try:
         if tmp == True:
             outfile = open('Filtered Tweets positive.txt','a')
@@ -128,10 +138,11 @@ def filterforcontent(tmp, alltwts, folder="./Tweets/"):
                         while line.find("  ") > 0:
                             line = line.replace("  ","")
                         line = line[1:-1]
+                        #This is necessary because all Tweets begin and end with "
                         line = re.sub('(\\\\u\\w+?)+?\\b','',line)
                         line = line.replace('\\','')
                         line = line.replace('RT ','')
-                        #line = line.replace('#','')
+                        #RT denotes "retweet". Even though retweets are not content created by the owner of the account, they still represent  political views and opinions
                         line = line.replace('&amp','and')
                         line = line.replace('w/a','without')
                         line = line.replace('w/', 'with')
@@ -141,7 +152,8 @@ def filterforcontent(tmp, alltwts, folder="./Tweets/"):
         return []
 #============================================================================
 '''This function lets the user check how a string looks like after preprocessing. 
-Note that preprocessing is handcrafted for tweepy string output and therefore may return odd-looking strings if the input string is a normal sentence'''
+Note that preprocessing is handcrafted for tweepy string output and therefore may return odd-looking strings if the input a string that is a normal sentence
+This function is never called when executing the code under normal circumstances but it provides an easy tool for users to process individual string manually'''
 
 def processstring(line):
     if not 'http' in line:
@@ -152,7 +164,6 @@ def processstring(line):
             line = re.sub('(\\\\u\\w+?)+?\\b','',line)
             line = line.replace('\\','')
             line = line.replace('RT ','')
-            #line = line.replace('#','')
             line = line.replace('&amp','and')
             line = line.replace('w/a','without')
             line = line.replace('w/', 'with')

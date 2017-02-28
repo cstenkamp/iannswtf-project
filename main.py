@@ -4,7 +4,7 @@ Created on Fri Feb 10 12:22:43 2017
 
 @author: csten_000
 """
-#also re-doing this: https://arxiv.org/abs/1408.5882
+
 
 import pickle
 from pathlib import Path
@@ -25,6 +25,7 @@ from create_random import random_strings
 from downloadAndPreprocess import create_folder, run_all
 from create_dataset import create_from_johannes
 import generatornetwork
+from tweepy_credentials import consumer_key, consumer_secret, access_key, access_secret
 
 #==============================================================================
 
@@ -52,6 +53,8 @@ class Config_moviedat(object):
     fast_create_antiset = False
     allnetworkinitscale = 0.1 
     generatorhiddensize = 200
+    max_gen_loss_to_perform = 300
+    min_disc_acc_to_perform = 0.7
     
     def __init__(self):
         if not os.path.exists(self.checkpointpath+"classifier/"):
@@ -82,6 +85,8 @@ class Config_trumpdat(object):
     fast_create_antiset = False
     allnetworkinitscale = 0.1 #kleiner falls mehr iterationen
     generatorhiddensize = 200 #könnte auch >1000 sein
+    max_gen_loss_to_perform = 300
+    min_disc_acc_to_perform = 0.7
     
     def __init__(self):
         if not os.path.exists(self.checkpointpath+"classifier/"):
@@ -323,9 +328,85 @@ def reset_trump_dataset():
    
 
 #==============================================================================
+
+def check_disc_accuracy(config, is_recognizer=False):
+    global checked_rec_acc_already, checked_cla_acc_already
+    
+    if is_recognizer:
+        if checked_rec_acc_already: 
+            return True
+    
+        if perform_classifier(config, validate_only=True, is_recognizer=True) < config.min_disc_acc_to_perform:
+            print("The recognizer is too bad, at first we have to make it learn!")
+            perform_classifier(config, short_run=True, is_recognizer=True)
+    
+        checked_rec_acc_already = True
+        return True
+    
+    else:
+        if checked_cla_acc_already: 
+            return True
+    
+        if perform_classifier(config, validate_only=True, is_recognizer=False) < config.min_disc_acc_to_perform:
+            print("The classifier is too bad, at first we have to make it learn!")
+            perform_classifier(config, short_run=True, is_recognizer=False)  
+    
+        checked_cla_acc_already = True
+        return True
+
+
+def check_gen_accuracy(config):
+    global checked_gen_acc_already
+    
+    if checked_gen_acc_already:
+        return True
+        
+    if perform_generator(config, validate_only=True) > config.max_gen_loss_to_perform:
+        print("The LanguageModel is too bad yet, at first we have to make it learn!")
+        perform_generator(config, short_run=True)
+        
+    checked_gen_acc_already = True
+    return True
+    
+    
+#==============================================================================
 #==============================================================================
 #==============================================================================    
 #==============================================================================    
+
+
+def perform_generator(config, validate_only=False, long_run=False, delete_all=False, short_run=False):
+    print("Looking at the Languagemodel/Generator...")
+
+    datset = load_dataset(config, config.use_w2v, False)
+
+    if validate_only:
+        return generatornetwork.validate(datset, config, printstuff=True)
+
+    if delete_all:
+        remove_zwischengespeichertes(config)
+        if config.is_for_trump:
+            reset_trump_dataset()
+            
+    if long_run:
+        generatornetwork.run_till_loss_lowerthan(datset, config, generatornetwork.LearnConfig())
+    elif short_run:
+        generatornetwork.run_train_and_valid(datset, config, generatornetwork.LearnConfig())
+
+
+
+def perform_generator_generate(config, harsh_rules=True, checkaccuracy=True):
+    
+    datset = load_dataset(config, config.use_w2v, False)
+    
+    if checkaccuracy:
+          check_gen_accuracy(config)
+          if harsh_rules:
+              check_disc_accuracy(config, is_recognizer=True)
+              check_disc_accuracy(config, is_recognizer=False)
+          
+    return get_something_to_tweet(config, datset, harsh_rules=harsh_rules)[0]
+
 
     
 def perform_classifier(config, is_recognizer=False, validate_only=False, long_run=False, short_run=False, delete_all=False):
@@ -340,10 +421,8 @@ def perform_classifier(config, is_recognizer=False, validate_only=False, long_ru
     X_train, y_train, X_test, y_test, X_validat, y_validat = prepare_dataset(config, datset)        
     
     if validate_only:
-        #TODO: hier nen error thrown wenn keiin dataset existiert!!!
-        validate(config=config, dataset=datset, X_validat=X_validat, y_validat=y_validat, bkpath=config.checkpointpath+subfolder, is_recognizer=is_recognizer)
-        return
-
+        return validate(config=config, dataset=datset, X_validat=X_validat, y_validat=y_validat, bkpath=config.checkpointpath+subfolder, is_recognizer=is_recognizer)
+        
     if delete_all:
         remove_zwischengespeichertes(config)
         if config.is_for_trump:
@@ -363,10 +442,14 @@ def perform_classifier(config, is_recognizer=False, validate_only=False, long_ru
 
 
 
-def perform_classifier_on_string(config, string, is_recognizer = False, doprint = False):
-    if doprint: print('Testing the string "', string, '"')
+def perform_classifier_on_string(config, string, is_recognizer = False, doprint = False, checkaccuracy=True):
+    if checkaccuracy:
+      check_disc_accuracy(config, is_recognizer=is_recognizer)
+      
+    if doprint: print("Testing the classifier on '", string, "'")
+    
     datset = load_and_select_dataset(config, include_tsne = False, is_recognizer = is_recognizer)
-    X_train, y_train, X_test, y_test, X_validat, y_validat = prepare_dataset(config, datset)        
+    X_train, y_train, X_test, y_test, X_validat, y_validat = prepare_dataset(config, datset)   
     result = test_one_sample(config, datset, string, is_recognizer=is_recognizer)
     if doprint: print("Positive example" if result else "Negative example")
     return result
@@ -397,6 +480,7 @@ def get_something_to_tweet(config, dataset, howmany=1, minlen=4, harsh_rules=Tru
     return returntweets
 
 
+
 #==============================================================================
 #==============================================================================
 #==============================================================================
@@ -405,6 +489,7 @@ def get_something_to_tweet(config, dataset, howmany=1, minlen=4, harsh_rules=Tru
 
 if __name__ == '__main__':
     global flag_onlyrun, flag_deleteall, flag_longversion, flag_showeverything, flag_shutup
+    global checked_rec_acc_already, checked_cla_acc_already, checked_gen_acc_already
     print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
     
     #flag_onlyrun, flag_deleteall, flag_longversion, flag_showeverything, flag_shutup = get_cmdarguments()
@@ -416,28 +501,31 @@ if __name__ == '__main__':
     else:
         config = Config_moviedat()    
 
+    checked_rec_acc_already = checked_cla_acc_already = checked_gen_acc_already = False
     
     print("Using the","Trump" if config.is_for_trump else "Movie","dataset")
     
 
-    #perform_classifier(config, validate_only=True, is_recognizer=False)   
-    #TODO: mit validateonly könnte der noch was returnen, und nur die nächsten funktionen ausführen falls das > 0.7 ist oder so!
-    #perform_classifier_on_string(config, "@realdonaldtrump #MAGA", doprint=True)
-
-
-    #TODO: er muss den generator auch noch in eine FALLS DU LADEN WILLST funktion etc machen
+#    print("VALIDATING THE DISCRIMINATOR")
+#    perform_classifier(config, validate_only=True, is_recognizer=False)   
+#    
+#    print("PERFORMING THE DISCRIMINATOR ON SOMETHING")
+#    perform_classifier_on_string(config, "@realdonaldtrump #MAGA", doprint=True)
+#
+#    print("GOING FOR THE GENERATOR, YEEEAHHHHH")
+#    print(perform_generator_generate(config))
     
-    #datset = load_dataset(config, config.use_w2v, False)
+    totweet = perform_generator_generate(config)
+    print(totweet)
+
+    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+    auth.set_access_token(access_key, access_secret)
+    api = tweepy.API(auth)
+    api.update_status(totweet)
     
-    tweepy.update_status("Test")
-    
-    #generatornetwork.main(datset, config)
-
-    #print(get_something_to_tweet(config, datset)[0])
 
 
 
-    
 #    if config.is_for_trump:
 #        perform_classifier_on_string(config, "@realdonaldtrump #MAGA", True, is_recognizer=False)
 #        perform_classifier_on_string(config, "Cars now cheap here!", True, is_recognizer=False)
