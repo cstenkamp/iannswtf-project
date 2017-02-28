@@ -1,7 +1,7 @@
 import random
 import numpy as np
 import tensorflow as tf
-#====own functions====
+#====own functions====r
 import file_functions
 
 UNKINDEX = 0
@@ -14,7 +14,7 @@ class LearnConfig(object):
   max_grad_norm = 5  
   num_steps = 20   
   max_epoch = 7   
-  max_max_epoch = 20 
+  max_max_epoch = 30
   keep_prob = 0.9  
   lr_decay = 0.5   
   min_lr = 0.01

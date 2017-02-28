@@ -74,11 +74,11 @@ class Config_trumpdat(object):
     w2v_usesets = [True, True, True]
     use_w2v = True
     embedding_size = 128
-    num_steps_w2v = 100001 
+    num_steps_w2v = 200001 
     maxlen_percentage = .90
     minlen_abs = 15
-    TRAIN_STEPS = 3 #TODO wieder auf viel setzen!!
-    longruntrials = 16
+    TRAIN_STEPS = 12
+    longruntrials = 20
     batch_size = 48
     expressive_run = False
     checkpointpath = "./trumpdatweights/"
@@ -491,47 +491,52 @@ if __name__ == '__main__':
     global flag_onlyrun, flag_deleteall, flag_longversion, flag_showeverything, flag_shutup
     global checked_rec_acc_already, checked_cla_acc_already, checked_gen_acc_already
     print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
+    try:
+        
+        #flag_onlyrun, flag_deleteall, flag_longversion, flag_showeverything, flag_shutup = get_cmdarguments()
+        flag_onlyrun = True
+        flag_deleteall = flag_longversion = flag_showeverything = flag_shutup = False
     
-    #flag_onlyrun, flag_deleteall, flag_longversion, flag_showeverything, flag_shutup = get_cmdarguments()
-    flag_onlyrun = True
-    flag_deleteall = flag_longversion = flag_showeverything = flag_shutup = False
-
-    if is_for_trump:
-        config = Config_trumpdat()    
-    else:
-        config = Config_moviedat()    
-
-    checked_rec_acc_already = checked_cla_acc_already = checked_gen_acc_already = False
+        if is_for_trump:
+            config = Config_trumpdat()    
+        else:
+            config = Config_moviedat()    
     
-    print("Using the","Trump" if config.is_for_trump else "Movie","dataset")
+        checked_rec_acc_already = checked_cla_acc_already = checked_gen_acc_already = False
+        
+        print("Using the","Trump" if config.is_for_trump else "Movie","dataset")
+        
     
-
-#    print("VALIDATING THE DISCRIMINATOR")
-#    perform_classifier(config, validate_only=True, is_recognizer=False)   
-#    
-#    print("PERFORMING THE DISCRIMINATOR ON SOMETHING")
-#    perform_classifier_on_string(config, "@realdonaldtrump #MAGA", doprint=True)
-#
-#    print("GOING FOR THE GENERATOR, YEEEAHHHHH")
-#    print(perform_generator_generate(config))
+    #    print("VALIDATING THE DISCRIMINATOR")
+    #    perform_classifier(config, validate_only=True, is_recognizer=False)   
+    #    
+    #    print("PERFORMING THE DISCRIMINATOR ON SOMETHING")
+    #    perform_classifier_on_string(config, "@realdonaldtrump #MAGA", doprint=True)
+    #
+    #    print("GOING FOR THE GENERATOR, YEEEAHHHHH")
+    #    print(perform_generator_generate(config))
+        
+        totweet = perform_generator_generate(config)
+        print(totweet)
     
-    totweet = perform_generator_generate(config)
-    print(totweet)
-
-    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-    auth.set_access_token(access_key, access_secret)
-    api = tweepy.API(auth)
-    api.update_status(totweet)
+        auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+        auth.set_access_token(access_key, access_secret)
+        api = tweepy.API(auth)
+        api.update_status(totweet)
+        
     
+    
+    
+    #    if config.is_for_trump:
+    #        perform_classifier_on_string(config, "@realdonaldtrump #MAGA", True, is_recognizer=False)
+    #        perform_classifier_on_string(config, "Cars now cheap here!", True, is_recognizer=False)
+    #    else:
+    #        perform_classifier_on_string(config, "I hated this movie. It sucks. The movie is bad, Worst movie ever. Bad Actors, bad everything.", True, is_recognizer=False)
+    #        perform_classifier_on_string(config, "I loved this movie. It is awesome. The movie is good, best movie ever. good Actors, good everything.", True, is_recognizer=False)
 
+    except ImportError:
+        print("Import Errors. Did you download Tensorflow and Tweepy?")
 
-
-#    if config.is_for_trump:
-#        perform_classifier_on_string(config, "@realdonaldtrump #MAGA", True, is_recognizer=False)
-#        perform_classifier_on_string(config, "Cars now cheap here!", True, is_recognizer=False)
-#    else:
-#        perform_classifier_on_string(config, "I hated this movie. It sucks. The movie is bad, Worst movie ever. Bad Actors, bad everything.", True, is_recognizer=False)
-#        perform_classifier_on_string(config, "I loved this movie. It is awesome. The movie is good, best movie ever. good Actors, good everything.", True, is_recognizer=False)
 
     print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
 

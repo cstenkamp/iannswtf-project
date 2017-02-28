@@ -63,7 +63,9 @@ def read_to_string(name):
 #=============================================================================
 '''This section of the code implements a twitter crawler using tweepy: http://www.tweepy.org/
 Sections of this code are taken from this tutorial: https://nocodewebscraping.com/twitter-json-examples/
-more specifically from this code: https://drive.google.com/file/d/0Bw1LIIbSl0xuNnJ0N1ppSkRjQjQ/view'''
+more specifically from this code: https://drive.google.com/file/d/0Bw1LIIbSl0xuNnJ0N1ppSkRjQjQ/view
+Parallelizing the crawler is unfortunately not possible, since it would require a seperate OAuth-Key for every thread.
+'''
 
 def get_all_tweets(screen_name):
 
