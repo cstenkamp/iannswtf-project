@@ -207,34 +207,22 @@ class thedataset(object):
         return list(self.lookup.keys())
 
 
-    #TODO: diese sollte simply replaced werden sobald das ins input-dict kommt!!
-    def producer(raw_data, batch_size, num_steps, name=None, graph=None):
-      if graph is None:
-          graph = tf.Graph()
-      with graph.as_default():
-          with tf.name_scope(name, "Producer", [raw_data, batch_size, num_steps]):
-            raw_data = tf.convert_to_tensor(raw_data, name="raw_data", dtype=tf.int32)
-        
-            data_len = tf.size(raw_data)
-            batch_len = data_len // batch_size
-            data = tf.reshape(raw_data[0 : batch_size * batch_len],
-                              [batch_size, batch_len])
-        
-            epoch_size = (batch_len - 1) // num_steps
-            assertion = tf.assert_positive(
-                epoch_size,
-                message="epoch_size == 0, decrease batch_size or num_steps")
-            with tf.control_dependencies([assertion]):
-              epoch_size = tf.identity(epoch_size, name="epoch_size")
-        
-            i = tf.train.range_input_producer(epoch_size, shuffle=False).dequeue()
-            x = tf.strided_slice(data, [0, i * num_steps],
-                                 [batch_size, (i + 1) * num_steps])
-            x.set_shape([batch_size, num_steps])
-            y = tf.strided_slice(data, [0, i * num_steps + 1],
-                                 [batch_size, (i + 1) * num_steps + 1])
-            y.set_shape([batch_size, num_steps])
-            return x, y
+    def grammar_iterator(raw_data, batch_size, num_steps):
+      raw_data = np.array(raw_data, dtype=np.int32)
+      data_len = len(raw_data)
+      batch_len = data_len // batch_size
+      data = np.zeros([batch_size, batch_len], dtype=np.int32)
+      for i in range(batch_size):
+        data[i] = raw_data[batch_len * i:batch_len * (i + 1)]
+      epoch_size = (batch_len - 1) // num_steps
+      if epoch_size == 0:
+        raise ValueError("epoch_size == 0, decrease batch_size or num_steps")
+      for i in range(epoch_size):
+        x = data[:, i*num_steps:(i+1)*num_steps]
+        y = data[:, i*num_steps+1:(i+1)*num_steps+1]
+        yield (x, y)
+
+
 
 
 
