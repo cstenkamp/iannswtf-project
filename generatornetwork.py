@@ -1,3 +1,10 @@
+#Der save_path muss noch das andere config.checkpointpath+"languagemodel/"
+
+#OK, now the Generative Model. Yay
+#https://arxiv.org/pdf/1609.05473.pdf
+#https://github.com/dennybritz/deeplearning-papernotes/blob/master/notes/seq-gan.md
+
+###############################################################################
 import time
 import random
 import numpy as np
@@ -169,8 +176,9 @@ class LanguageModel(object):
               return scoreMatExp / scoreMatExp.sum(0)
         
         def thesample(a, letter, temperature=1.0, nounk=True, lengmean=0):
+            atleast = 0 if letter < 2 else 1
             if lengmean == 0:
-                return sample(a, temperature, nounk)
+                return sample(a, temperature, nounk, eosprob=atleast)
             else:
                 tmpa = list(range(lengmean))
                 tmpb = list(range(lengmean))
@@ -182,7 +190,7 @@ class LanguageModel(object):
                         a[EOSINDEX] *= 2
                 except IndexError: #dann wären wir schon doppelt so lang wie der verlangte mean
                     a[EOSINDEX] *= 10
-                return sample(a, temperature, nounk, eosprob=letter/lengmean) #ist am anfang sehr klein, 1 bei avglen, wird immer größer.
+                return sample(a, temperature, nounk, eosprob=(letter/lengmean)*atleast) #ist am anfang sehr klein, 1 bei avglen, wird immer größer.
                 
         state = session.run(self.initial_state)
         x = EOSINDEX # the id for '<eos>' from the training set #TODO: this.
@@ -229,10 +237,10 @@ class LanguageModel(object):
 ###############################################################################
 
 
-def main_generate(savepath, vocab, howmany, nounk=True, avglen=0):
+def main_generate(savepath, dataset, howmany, nounk=True, avglen=0):
     graph = tf.Graph()
     config = SmallGenConfig()
-    config.vocab_size = len(vocab)+1 #should be dataset.ohnum
+    config.vocab_size = dataset.ohnum
     with graph.as_default():
         initializer = tf.random_uniform_initializer(-config.init_scale, config.init_scale)
         with tf.name_scope("Generator"):
@@ -241,31 +249,27 @@ def main_generate(savepath, vocab, howmany, nounk=True, avglen=0):
                 with tf.Session() as session:
                     saver = tf.train.Saver() 
                     ckpt = tf.train.get_checkpoint_state(savepath) 
-                    if ckpt and ckpt.model_checkpoint_path:
-                        print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
-                        saver.restore(session, ckpt.model_checkpoint_path)  
-                        iteration = file_functions.read_iteration(path = save_path)
-                        print(iteration,"iterations ran already.") 
+                    assert ckpt and ckpt.model_checkpoint_path, "There must be a checkpoint!"
+                    
+                    print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+                    saver.restore(session, ckpt.model_checkpoint_path)  
+                    iteration = file_functions.read_iteration(path = save_path)
+                    print(iteration,"iterations ran already.") 
+                    texts = m.generate_text(session, config, howmany, nounk, avglen)
+                    return print_pretty(texts, dataset)
                         
-                        texts = m.generate_text(session, config, howmany, nounk, avglen)
-                        
-                        print(print_pretty(texts, vocab))
-                    else:
-                        print("Sorry, no model to load!")
-                        
-                                       
-                        
-                        
+                               
                         
 
-def print_pretty(texts, vocab):
-    string = ""
+def print_pretty(texts, dataset):
+    strings = []
     for currtext in texts:
-        print(len(currtext))
+        string = ""
         for word in currtext:
-            string += vocab[word] + " "
-        string += "\n\n"
-    return string
+            string += dataset.uplook[word] + " "
+        string = dataset.prepareback(string)
+        strings.append(string)
+    return strings
 
 
 

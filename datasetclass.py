@@ -151,10 +151,8 @@ class thedataset(object):
     def printcloseones(self, word):
         print("Close to '",word.replace(" ",""),"': ",self.closeones([self.lookup[word]]))
     
-                  
-    def showarating(self,number):
-        array = [self.uplook[i] for i in self.trainreviews[number]]
-        str = ' '.join(array)
+               
+    def prepareback(self, str):
         str = str.replace(" <comma>", ",")
         str = str.replace(" <colon>", ":")
         str = str.replace(" <openBracket>", "(")
@@ -165,11 +163,18 @@ class thedataset(object):
         str = str.replace("<quote>", '"')
         str = str.replace(" <question>", "?")
         str = str.replace(" <exclamation>", "!")
-        str = str.replace(" <hyphen>  ","-")
+        str = str.replace(" <hyphen> ","-")
         str = str.replace(" <END>", "")
         str = str.replace(" <SuperQuestion>", "???")
         str = str.replace(" <SuperExclamation>", "!!!")
-        print(str)
+        return str
+        
+        
+    def showarating(self,number):
+        array = [self.uplook[i] for i in self.trainreviews[number]]
+        str = ' '.join(array)
+        str = self.prepareback(str)
+        return str
         
 
 

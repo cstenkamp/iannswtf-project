@@ -1,3 +1,9 @@
+TODO-AKTUELL
+-die ganzen inputs optional als parameter
+-expressive mode noch besser, mit optionalen parametern überall was er printen soll
+-den graph im expressive mode noch labeln
+
+
 DONE:
 -we have pre-trained word embeddings!
 -word2vec in eine eigene Klasse/Funktion
@@ -8,30 +14,32 @@ DONE:
 -funktion um einzelne Ratings zu geben
 -die word2vec-embeddings tatsächlich nutzen
 -gucken wie man weights speichert
-
-TODO:
--das shortenstrings zieht noch sätze auseinander!! >.<
 -beim viel-zeit-modus noch ganz viele einzelne weights speichern (nach jeder iteration)
 -oh, achja, mit pretrained wordvecs klappts noch nicht (???)
 -dann das generative model.
 -ersetzt er im trumpdataset bisher überhaupt durch <unk>?
 -warum ist "nwed" eines der häufigsten wörter??
+-gucken ob der beim twitter-set "4" und "for" nah beieinander macht :o
+-den langen expressive mode (siehe erwartungshorizont)
+-nen super-expressive-run-modus, wo der schön die kurve mit testing und training loss anzeigt!
+-Die länge des strings per wahrscheinlichkeitsverteilung über dingsi
+-einen generator schreiben der zufällige strings macht, und das halt als negative input für GAN??
+
+
+TODO:
+-das shortenstrings zieht noch sätze auseinander!! >.<
+-word2vec anschließend nen bisschen clustern? sodass colloquial-synonyme einfacher zu erkennen sind?
+-nach dem generator muss noch ein skript laufen dass die <unks> wegmacht, falls sie mitgeneriert wurden
+
 
 GENERELL
 -das bisherige guuut auskommentieren
 -quellen mitscheiben
 -mitschreiben was suboptimal ist (auch was gut, word2vec selbstcoden)
--gucken ob der beim twitter-set "4" und "for" nah beieinander macht :o
--word2vec anschließend nen bisschen clustern? sodass colloquial-synonyme einfacher zu erkennen sind?
 -wie gehen wir mit @mention's um?
--nen super-expressive-run-modus, wo der schön die kurve mit testing und training loss anzeigt!
 -vielleicht vielleicht vielleicht usernamen durch nen generelles user-token ersetzen? Oder nach kategorie? Oder 2: retweet, antweet?
--den langen expressive mode (siehe erwartungshorizont)
--einen generator schreiben der zufällige strings macht, und das halt als negative input für GAN??
--nach dem generator muss noch ein skript laufen dass die <unks> wegmacht... :/
--Die länge des strings per wahrscheinlichkeitsverteilung über dingsi
--label the motherfucking graphs
+
 
 WE SEE
 -when using pretrained w2v, it starts at 75% accuracy!
--
+-4 und for sind nah

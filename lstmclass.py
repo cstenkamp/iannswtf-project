@@ -91,7 +91,8 @@ class LSTM(object):
         
             
             
-    def run_on(self, session, x_data, y_data, is_training, saver=None, iteration=0, epoch=0, maxepoch=0, SaveALot=False):   
+    def run_on(self, session, x_data, y_data, is_training, is_recognizer, saver=None, iteration=0, epoch=0, maxepoch=0, SaveALot=False):   
+        subfolder = "recognizer/" if is_recognizer else "classifier/"
         step = 0
         acc_accuracy = 0
         for x_batch, y_batch in create_batches(x_data, y_data, self.config.batch_size):
@@ -110,12 +111,12 @@ class LSTM(object):
         
         if is_training:
             if self.config.use_w2v:
-                savename = self.config.checkpointpath+"weights_wordvecs.ckpt"
+                savename = self.config.checkpointpath+subfolder+"weights_wordvecs.ckpt"
             else:
-                savename = self.config.checkpointpath+"weights.ckpt"
+                savename = self.config.checkpointpath+subfolder+"weights.ckpt"
         
             if SaveALot:
-                savename = self.config.checkpointpath+"ManyIterations/"
+                savename = self.config.checkpointpath+subfolder+"ManyIterations/"
                 if not os.path.exists(savename):
                     os.makedirs(savename) 
                 middlename = "_wordvecs" if self.config.use_w2v else ""
@@ -123,8 +124,8 @@ class LSTM(object):
             
             saver.save(session, savename)
         
-        time.sleep(0.1)
-        file_functions.write_iteration(number = iteration+epoch+1, path=self.config.checkpointpath)
+            time.sleep(0.1)
+            file_functions.write_iteration(number = iteration+epoch+1, path=self.config.checkpointpath+subfolder)
         
         return accuracy
     
@@ -152,8 +153,9 @@ def initialize_uninitialized_vars(session):
 
 
 
-def train_and_test(config, dataset, amount_iterations, X_train, y_train, X_test, y_test):
-    file_functions.prepare_checkpoint(config.use_w2v,config.checkpointpath)
+def train_and_test(config, dataset, amount_iterations, X_train, y_train, X_test, y_test, is_recognizer=False):
+    subfolder = "recognizer/" if is_recognizer else "classifier/"
+    file_functions.prepare_checkpoint(config.use_w2v,config.checkpointpath+subfolder)
     
     with tf.Graph().as_default(), tf.Session() as session:
         initializer = tf.random_uniform_initializer(-0.1, 0.1)
@@ -165,11 +167,11 @@ def train_and_test(config, dataset, amount_iterations, X_train, y_train, X_test,
     
             saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
            
-            ckpt = tf.train.get_checkpoint_state(config.checkpointpath) 
+            ckpt = tf.train.get_checkpoint_state(config.checkpointpath+subfolder) 
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                iteration = file_functions.read_iteration(path = config.checkpointpath)
+                iteration = file_functions.read_iteration(path = config.checkpointpath+subfolder)
                 print(iteration,"iterations ran already.")
             else:
                 print("Created model with fresh parameters.")
@@ -199,7 +201,7 @@ def train_and_test(config, dataset, amount_iterations, X_train, y_train, X_test,
                 
             for i in range(training_steps):
                 
-                train_accuracy = model.run_on(session, X_train, y_train, True, saver, iteration, i, training_steps)
+                train_accuracy = model.run_on(session, X_train, y_train, True, is_recognizer, saver, iteration, i, training_steps)
                 print("Epoch: %d \t Train Accuracy: %.3f" % (i + 1, train_accuracy))          
         
             
@@ -214,7 +216,7 @@ def train_and_test(config, dataset, amount_iterations, X_train, y_train, X_test,
                 print("Not using the pre-trained word2vec")
                 
                 
-            test_accuracy = testmodel.run_on(session, X_test, y_test, False)
+            test_accuracy = testmodel.run_on(session, X_test, y_test, False, is_recognizer)
             print("Testing Set Accuracy: %.3f" % (test_accuracy))          
 
 
@@ -223,7 +225,8 @@ def train_and_test(config, dataset, amount_iterations, X_train, y_train, X_test,
 
 
 
-def validate(config, dataset, X_validat, y_validat, bkpath = ""):
+def validate(config, dataset, X_validat, y_validat, bkpath = "", is_recognizer=False):
+   subfolder = "recognizer/" if is_recognizer else "classifier/"
    with tf.Graph().as_default(), tf.Session() as session:
        initializer = tf.random_uniform_initializer(-0.1, 0.1)
     
@@ -237,7 +240,7 @@ def validate(config, dataset, X_validat, y_validat, bkpath = ""):
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                if bkpath == "": bkpath = config.checkpointpath
+                if bkpath == "": bkpath = config.checkpointpath+subfolder
                 print(file_functions.read_iteration(path = bkpath),"iterations ran already.")
             else:
                 print("uhm, without a model it doesn't work") #TODO: anders
@@ -250,7 +253,7 @@ def validate(config, dataset, X_validat, y_validat, bkpath = ""):
                 print("Not using the pre-trained word2vec")
                 
                 
-            valid_accuracy = testmodel.run_on(session, X_validat, y_validat, False)
+            valid_accuracy = testmodel.run_on(session, X_validat, y_validat, False, is_recognizer)
             print("Validation Set Accuracy: %.3f" % (valid_accuracy))     
             
             
@@ -259,7 +262,8 @@ def validate(config, dataset, X_validat, y_validat, bkpath = ""):
             
             
 
-def test_one_sample(config, dataset, string, doprint=False):
+def test_one_sample(config, dataset, string, is_recognizer=False):
+    subfolder = "recognizer/" if is_recognizer else "classifier/"
     
     def to_one_hot(y):
         y_one_hot = []
@@ -270,11 +274,14 @@ def test_one_sample(config, dataset, string, doprint=False):
                 y_one_hot.append([0.0, 1.0])
         return np.array([np.array(row) for row in y_one_hot])
     
-    if doprint: print("Possible Text:",string)
     datset = [dataset.lookup[i] if i in dataset.lookup.keys() else dataset.lookup["<UNK>"] for i in preparestring(string).split(" ")] #oh damn, für solche einzeiler liebe ich python.
     datset = datset + [0]*(dataset.maxlenstring-len(datset))
     datset = [datset]*config.batch_size 
     data_t = to_one_hot([0]*config.batch_size)
+    
+    if len(string.split()) > dataset.maxlenstring:
+        return False
+    
     with tf.Graph().as_default(), tf.Session() as session:
         initializer = tf.random_uniform_initializer(-0.1, 0.1)
     
@@ -283,7 +290,7 @@ def test_one_sample(config, dataset, string, doprint=False):
     
             saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=5)
            
-            ckpt = tf.train.get_checkpoint_state(config.checkpointpath) 
+            ckpt = tf.train.get_checkpoint_state(config.checkpointpath+subfolder) 
             if ckpt and ckpt.model_checkpoint_path:
                 #print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
@@ -294,12 +301,6 @@ def test_one_sample(config, dataset, string, doprint=False):
 
             whatis = stats.mode(np.argmax(result[0], 1))[0][0]
 
-            if doprint: 
-                if not config.is_for_trump: 
-                    print("-> Possible Rating: good movie" if whatis != 0 else "-> Possible Rating: bad movie")
-                else:
-                    print("-> Possible politial view: Trump-ee" if whatis != 0 else "-> Possible political view: non-trump-ee")
-            
             return (whatis == 1)
 
 
@@ -335,10 +336,11 @@ class global_plot:
 
         
 
-def plot_test_and_train(config, dataset, amount_iterations, X_train, y_train, X_test, y_test):
+def plot_test_and_train(config, dataset, amount_iterations, X_train, y_train, X_test, y_test, is_recognizer=False):
+    subfolder = "recognizer/" if is_recognizer else "classifier/"
     
     middlename = "_wordvecs" if config.use_w2v else ""
-    pathname = config.checkpointpath+"ManyIterations/"
+    pathname = config.checkpointpath+subfolder+"ManyIterations/"
     
     if os.path.exists(pathname):
         for filename in os.listdir(pathname):
@@ -372,12 +374,12 @@ def plot_test_and_train(config, dataset, amount_iterations, X_train, y_train, X_
         test_accuracies = []
         
         for i in range(amount_iterations):
-            train_accuracy = model.run_on(session, X_train, y_train, True, saver, iteration, i, amount_iterations, True)
+            train_accuracy = model.run_on(session, X_train, y_train, True, is_recognizer, saver, iteration, i, amount_iterations, True)
             print("")
-            test_accuracy = testmodel.run_on(session, X_test, y_test, False)
+            test_accuracy = testmodel.run_on(session, X_test, y_test, False, is_recognizer)
             print("Epoch: %d \t Train Accuracy: %.3f \t Testing Accuracy: %.3f" % (i + 1, train_accuracy, test_accuracy))          
   
-            plot.update_plot(train_accuracy, test_accuracy, config.checkpointpath+"figure_dump.png")
+            plot.update_plot(train_accuracy, test_accuracy, config.checkpointpath+subfolder+"figure_dump.png")
             test_accuracies.append(test_accuracy)
             
     bestone = np.argmax(test_accuracies)+1    
@@ -397,7 +399,7 @@ def plot_test_and_train(config, dataset, amount_iterations, X_train, y_train, X_
     if 0.35 < np.max(test_accuracies) < 0.65:
         print("I can tell you that it sucked. However, normally it does learn quite well. You may want to run it again, 85% distinction accuracy is possible.")
     
-    if input("Shall I copy the best episode into "+config.checkpointpath+"? It may overwrite the current one in there.") in ('y','yes','Y','Yes','YES'):
+    if input("Shall I copy the best episode into "+config.checkpointpath+subfolder+"? It may overwrite the current one in there.") in ('y','yes','Y','Yes','YES'):
      for filename in os.listdir(pathname):
         shutil.copy(pathname+filename, (pathname+filename).replace("ManyIterations/",""))
         

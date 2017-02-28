@@ -1,0 +1,26 @@
+Nearest to dude: <UNK>, generous, @jimlibertarian, foundations, @realvinniejames, youll, @neiltyson, vs,
+Nearest to <comma>: <dot>, clearance, <semicolon>, @suzanbay, dobbs, networks, viciously, south,
+Nearest to ronald: content, landowners, disable, @warrior4victory, biden, america, able, ninth,
+Nearest to <semicolon>: <comma>, entrances, tolerant, @richardgarriott, nazis, clarification, blocked, @chasestraight,
+Nearest to support: aspiring, motor, drums, reps, peo, face, @frozenyogurt3, <UNK>,
+Nearest to reagan: ladies, names, dec, @bobafettfanclub, inauguration, karma, respected, slander,
+Nearest to a: fart, humans, bashing, sworn, the, snakes, @djfood, attorneys,
+Nearest to those: these, #trade, their, you, nnot, lots, coating, apparent,
+Nearest to using: celebrating, keeping, questions, books, posting, @drudge_report, prevented, @aappres,
+Nearest to you: u, we, mourning, they, +0, i, them, unleash,
+Nearest to wing: seeking, kappa, thanksgiving, sells, makes, quality, happen, store,
+Nearest to against: for, waking, refuses, mass, hasn, 9pm, continued, baldwin,
+Nearest to evil: wod, uncool, @impsy, @marlibu, @wikileaks, filled, suggestions, showed,
+Nearest to violation: progressive, whites, generous, donating, feed, cake, candidates, workforce,
+Nearest to going: trying, emailed, losing, convince, #blogher11, #snowflakes, therapy, meal,
+Nearest to but: so, alright, @jewschoosetrump, and, suffered, @thejuanwilliams, centers, btw,
+Saved word2vec-Results.
+Word2vec ran through 316896 different strings.
+Close to ' 4 ':  ['for', '2', 'items', 'citizens', '5']
+Close to ' evil ':  ['wod', 'uncool', '@impsy', '@marlibu', '@wikileaks']
+Close to ' trump ':  ['he', 'hillary', '#trump', 'obama', '@realdonaldtrump']
+Close to ' woman ':  ['eliminate', 'script', 'counteract', 'dictatorship', 'play']
+Close to ' <dot> ':  ['<dots>', '<UNK>', '<exclamation>', '<comma>', 'appears']
+Close to ' his ':  ['their', 'your', 'my', 'her', 'our']
+Close to ' bad ':  ['@policycast', 'sad', 'art', 'spooky', 'shows']
+Close to ' three ':  ['phoenix', 'festivals', 'filtering', '@rtoro20', 'consent']
