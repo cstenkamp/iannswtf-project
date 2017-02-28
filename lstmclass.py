@@ -158,7 +158,7 @@ def train_and_test(config, dataset, amount_iterations, X_train, y_train, X_test,
     file_functions.prepare_checkpoint(config.use_w2v,config.checkpointpath+subfolder)
     
     with tf.Graph().as_default(), tf.Session() as session:
-        initializer = tf.random_uniform_initializer(-0.1, 0.1)
+        initializer = tf.random_uniform_initializer(-config.allnetworkinitscale, config.allnetworkinitscale)
     
      #TODO: abfragen ob er lernen, applien oder beides will (oder vie-zeit-modus)
      #viel-zeit-modus: wo er train und test accuracy live errechnet und direkt plottet und man sich das beste aussuchen kann
@@ -228,7 +228,7 @@ def train_and_test(config, dataset, amount_iterations, X_train, y_train, X_test,
 def validate(config, dataset, X_validat, y_validat, bkpath = "", is_recognizer=False):
    subfolder = "recognizer/" if is_recognizer else "classifier/"
    with tf.Graph().as_default(), tf.Session() as session:
-       initializer = tf.random_uniform_initializer(-0.1, 0.1)
+       initializer = tf.random_uniform_initializer(-config.allnetworkinitscale, config.allnetworkinitscale)
     
        with tf.variable_scope("model", reuse=None, initializer=initializer):
             print("Trying to apply the model to the validation-set...")        
@@ -283,7 +283,7 @@ def test_one_sample(config, dataset, string, is_recognizer=False):
         return False
     
     with tf.Graph().as_default(), tf.Session() as session:
-        initializer = tf.random_uniform_initializer(-0.1, 0.1)
+        initializer = tf.random_uniform_initializer(-config.allnetworkinitscale, config.allnetworkinitscale)
     
         with tf.variable_scope("model", reuse=None, initializer=initializer):    
             testmodel = LSTM(config=config, dataset=dataset, is_training=False)
@@ -347,7 +347,7 @@ def plot_test_and_train(config, dataset, amount_iterations, X_train, y_train, X_
             os.remove(os.path.join(pathname, filename))
     
     with tf.Graph().as_default(), tf.Session() as session:
-        initializer = tf.random_uniform_initializer(-0.1, 0.1)
+        initializer = tf.random_uniform_initializer(-config.allnetworkinitscale, config.allnetworkinitscale)
     
         with tf.variable_scope("model", reuse=None, initializer=initializer):
             model = LSTM(config=config, dataset=dataset, is_training=True)

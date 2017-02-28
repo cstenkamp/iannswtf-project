@@ -15,6 +15,7 @@ import datetime
 import os
 import copy
 import sys
+import tweepy
 
 #====own files====
 import datasetclass
@@ -49,6 +50,9 @@ class Config_moviedat(object):
     expressive_run = False
     checkpointpath = "./moviedatweights/"    
     fast_create_antiset = False
+    allnetworkinitscale = 0.1 
+    generatorhiddensize = 200
+    
     def __init__(self):
         if not os.path.exists(self.checkpointpath+"classifier/"):
             os.makedirs(self.checkpointpath+"classifier/")         
@@ -76,6 +80,9 @@ class Config_trumpdat(object):
     expressive_run = False
     checkpointpath = "./trumpdatweights/"
     fast_create_antiset = False
+    allnetworkinitscale = 0.1 #kleiner falls mehr iterationen
+    generatorhiddensize = 200 #könnte auch >1000 sein
+    
     def __init__(self):
         if not os.path.exists(self.checkpointpath+"classifier/"):
             os.makedirs(self.checkpointpath+"classifier/")         
@@ -366,10 +373,10 @@ def perform_classifier_on_string(config, string, is_recognizer = False, doprint 
     
 
 
-def get_something_to_tweet(dataset, howmany=1, minlen=4, harsh_rules=True): #diese Funktion kann theoretisch endlos laufen, but who cares.
+def get_something_to_tweet(config, dataset, howmany=1, minlen=4, harsh_rules=True): #diese Funktion kann theoretisch endlos laufen, but who cares.
     returntweets = []
     while len(returntweets) < howmany:
-        tweets = generatornetwork.main_generate("./save/", dataset, howmany*2, nounk = True, avglen = 25)
+        tweets = generatornetwork.main_generate(config, dataset, howmany*2, nounk = True, avglen = 25)
         for tweet in tweets:
             if len(tweet) < 139:
                 if harsh_rules:
@@ -420,11 +427,13 @@ if __name__ == '__main__':
 
     #TODO: er muss den generator auch noch in eine FALLS DU LADEN WILLST funktion etc machen
     
-    datset = load_dataset(config, config.use_w2v, False)
+    #datset = load_dataset(config, config.use_w2v, False)
     
-    #generatornetwork.main(datset)
+    tweepy.update_status("Test")
+    
+    #generatornetwork.main(datset, config)
 
-    print(get_something_to_tweet(datset)[0])
+    #print(get_something_to_tweet(config, datset)[0])
 
 
 

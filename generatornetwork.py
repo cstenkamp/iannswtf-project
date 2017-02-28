@@ -1,5 +1,3 @@
-#Der save_path muss noch das andere config.checkpointpath+"languagemodel/"
-
 #OK, now the Generative Model. Yay
 #https://arxiv.org/pdf/1609.05473.pdf
 #https://github.com/dennybritz/deeplearning-papernotes/blob/master/notes/seq-gan.md
@@ -9,60 +7,45 @@ import time
 import random
 import numpy as np
 import tensorflow as tf
-import copy
-
 #====own functions====
 import file_functions
 
 UNKINDEX = 0
 EOSINDEX = 1
 
-save_path = "./save/"
 
-class SmallConfig(object):
+class LearnConfig(object):
   """Small config."""
-  init_scale = 0.1
   learning_rate = 1.0
-  max_grad_norm = 5
-  num_layers = 2
-  num_steps = 20
-  hidden_size = 200
-  max_epoch = 4
-  max_max_epoch = 6
-  keep_prob = 1.0
-  lr_decay = 0.5
+  max_grad_norm = 5  #10 bei large
+  num_steps = 20     #20 bei small, 35 bei large
+  max_epoch = 4      #14 bei large
+  max_max_epoch = 6  #55 bei large
+  keep_prob = 0.9    #0.35 bei large
+  lr_decay = 0.5     #1 / 1.15 bei large
   batch_size = 20
-  vocab_size = 10000
 
 
-class SmallGenConfig(object):
-  """Small config. for generation"""
-  init_scale = 0.1
-  learning_rate = 1.0
-  max_grad_norm = 5
-  num_layers = 2
-  num_steps = 1 # this is the main difference
-  hidden_size = 200
-  max_epoch = 4
-  max_max_epoch = 13
-  keep_prob = 1.0
-  lr_decay = 0.5
+class TestGenConfig(LearnConfig):
+  """Tiny config, for testing."""
+  max_grad_norm = 1
+  num_steps = 1
+  max_epoch = 1
+  max_max_epoch = 1
   batch_size = 1
-  vocab_size = 10000  
-
-
-config = SmallConfig()  #TestConfig()
-
+  keep_prob = 1
 
 
 ###############################################################################
 
 class LanguageModel(object):
-    def __init__(self, is_training, config, is_generator=False):
+    def __init__(self, mainconfig, dataset, is_training, config, is_generator=False):
+        self.mainconfig = mainconfig
+
         self.batch_size = config.batch_size
         self.num_steps = config.num_steps   
-        size = config.hidden_size
-        vocab_size = config.vocab_size
+        size = mainconfig.generatorhiddensize
+        vocab_size = dataset.ohnum
     
         self.input_data = tf.placeholder(tf.int32, [self.batch_size, self.num_steps], name="inputdata")
         if not is_generator:
@@ -73,7 +56,8 @@ class LanguageModel(object):
         else:
             lstm_cell = tf.contrib.rnn.BasicLSTMCell(size, forget_bias=0.0, state_is_tuple=True)
             
-        cell = tf.contrib.rnn.MultiRNNCell([lstm_cell for _ in range(config.num_layers)], state_is_tuple=True)        
+        NUMLAYERS = 2   
+        cell = tf.contrib.rnn.MultiRNNCell([lstm_cell for _ in range(NUMLAYERS)], state_is_tuple=True)        
     
         #since in our LSTM state_is_tuple, we have to deal with the initial state differently (see later)
         self.initial_state = cell.zero_state(self.batch_size, tf.float32)
@@ -237,23 +221,21 @@ class LanguageModel(object):
 ###############################################################################
 
 
-def main_generate(savepath, dataset, howmany, nounk=True, avglen=0):
-    graph = tf.Graph()
-    config = SmallGenConfig()
-    config.vocab_size = dataset.ohnum
-    with graph.as_default():
-        initializer = tf.random_uniform_initializer(-config.init_scale, config.init_scale)
+def main_generate(mainconfig, dataset, howmany, nounk=True, avglen=0):
+    config = TestGenConfig()
+    with tf.Graph().as_default():
+        initializer = tf.random_uniform_initializer(-mainconfig.allnetworkinitscale, mainconfig.allnetworkinitscale)
         with tf.name_scope("Generator"):
             with tf.variable_scope("Model", reuse=None, initializer=initializer):
-                m = LanguageModel(is_training=False, config=config, is_generator=True) 
+                m = LanguageModel(mainconfig, dataset, is_training=False, config=config, is_generator=True) 
                 with tf.Session() as session:
                     saver = tf.train.Saver() 
-                    ckpt = tf.train.get_checkpoint_state(savepath) 
+                    ckpt = tf.train.get_checkpoint_state(mainconfig.checkpointpath+"languagemodel/") 
                     assert ckpt and ckpt.model_checkpoint_path, "There must be a checkpoint!"
                     
                     print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                     saver.restore(session, ckpt.model_checkpoint_path)  
-                    iteration = file_functions.read_iteration(path = save_path)
+                    iteration = file_functions.read_iteration(path = mainconfig.checkpointpath+"languagemodel/")
                     print(iteration,"iterations ran already.") 
                     texts = m.generate_text(session, config, howmany, nounk, avglen)
                     return print_pretty(texts, dataset)
@@ -273,45 +255,37 @@ def print_pretty(texts, dataset):
 
 
 
-def main(dataset):
-    config.vocab_size = dataset.ohnum
+def main(dataset, mainconfig, lmconfig):
     iterator = dataset.grammar_iterator
     
-    graph = tf.Graph()
-
-    raw_data = dataset.return_all(only_positive=True) #TODO true hier nur bei trumpdata
-    train_data, valid_data, test_data, _ = raw_data  
-
-    eval_config = copy.deepcopy(config)
-    eval_config.batch_size = 1
-    eval_config.num_steps = 1
-
-    with graph.as_default():
-        initializer = tf.random_uniform_initializer(-config.init_scale, config.init_scale)
+    train_data, valid_data, test_data, _ = dataset.return_all(only_positive = mainconfig.is_for_trump)
+    
+    with tf.Graph().as_default():
+        initializer = tf.random_uniform_initializer(-mainconfig.allnetworkinitscale, mainconfig.allnetworkinitscale)
 
         with tf.name_scope("Train"):
             with tf.variable_scope("Model", reuse=None, initializer=initializer):
-                m = LanguageModel(is_training=True, config=config)
+                m = LanguageModel(mainconfig, dataset, is_training=True, config=lmconfig)
             tf.summary.scalar("Training Loss", m.cost)
             tf.summary.scalar("Learning Rate", m.lr)
 
         with tf.name_scope("Valid"):
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
-                mvalid = LanguageModel(is_training=False, config=config)
+                mvalid = LanguageModel(mainconfig, dataset, is_training=False, config=lmconfig)
             tf.summary.scalar("Validation Loss", mvalid.cost)
 
         with tf.name_scope("Test"):
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
-              mtest = LanguageModel(is_training=False, config=eval_config)
+              mtest = LanguageModel(mainconfig, dataset, is_training=False, config=TestGenConfig())
 
         with tf.Session() as session:
             saver = tf.train.Saver() 
             
-            ckpt = tf.train.get_checkpoint_state(save_path) 
+            ckpt = tf.train.get_checkpoint_state(mainconfig.checkpointpath+"languagemodel/") 
             if ckpt and ckpt.model_checkpoint_path:
                 print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
                 saver.restore(session, ckpt.model_checkpoint_path)
-                iteration = file_functions.read_iteration(path = save_path)
+                iteration = file_functions.read_iteration(path = mainconfig.checkpointpath+"languagemodel/")
                 print(iteration,"iterations ran already.")
             else:
                 print("Created model with fresh parameters.")
@@ -319,24 +293,24 @@ def main(dataset):
                 init.run()
                 iteration = 0
                 
-            print("Running for",config.max_max_epoch-iteration,"(further) iterations.")
-            for i in range(config.max_max_epoch-iteration):
-                lr_decay = config.lr_decay ** max(iteration+i+1 - config.max_epoch, 0.0)
-                m.assign_lr(session, config.learning_rate * lr_decay)
+            print("Running for",lmconfig.max_max_epoch-iteration,"(further) iterations.")
+            for i in range(lmconfig.max_max_epoch-iteration):
+                lr_decay = lmconfig.lr_decay ** max(iteration+i+1 - lmconfig.max_epoch, 0.0)
+                m.assign_lr(session, lmconfig.learning_rate * lr_decay)
 
                 print("Epoch: %d Learning rate: %.3f" % (i + 1, session.run(m.lr)))
-                train_perplexity = m.run_epoch(session, config, train_data, iterator, eval_op=m.train_op, verbose=True)
+                train_perplexity = m.run_epoch(session, lmconfig, train_data, iterator, eval_op=m.train_op, verbose=True)
                 print("Epoch: %d Train Perplexity: %.3f" % (i + 1, train_perplexity))
-                valid_perplexity = mvalid.run_epoch(session, config, valid_data, iterator)
+                valid_perplexity = mvalid.run_epoch(session, lmconfig, valid_data, iterator)
                 print("Epoch: %d Valid Perplexity: %.3f" % (i + 1, valid_perplexity))
                 
-                if save_path != "":
-                    print("Saving model to %s." % save_path)
-                    saver.save(session, save_path+"genweights.ckpt")
-                    file_functions.write_iteration(number = iteration+i+1, path=save_path)
+                if mainconfig.checkpointpath+"languagemodel/" != "":
+                    print("Saving model to %s." % mainconfig.checkpointpath+"languagemodel/")
+                    saver.save(session, mainconfig.checkpointpath+"languagemodel/"+"genweights.ckpt")
+                    file_functions.write_iteration(number = iteration+i+1, path=mainconfig.checkpointpath+"languagemodel/")
                     
 
-            test_perplexity = mtest.run_epoch(session, config, test_data, iterator)
+            test_perplexity = mtest.run_epoch(session, lmconfig, test_data, iterator)
             print("Test Perplexity: %.3f" % test_perplexity)
 
 
@@ -344,6 +318,7 @@ def main(dataset):
 ###############################################################################
 
 #if __name__ == "__main__":
-    #main()
-    #main_generate(save_path, reader.get_vocab("./Neuer Ordner/simple-examples/data/ptb.train.txt"), 40, nounk = True, avglen = 20)
+#    config = LearnConfig()
+#    main()
+#    main_generate( reader.get_vocab("./Neuer Ordner/simple-examples/data/ptb.train.txt"), 40, nounk = True, avglen = 20)
     
