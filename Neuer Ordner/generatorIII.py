@@ -136,7 +136,7 @@ class PTBModel(object):
 
 
 
-def run_epoch(session, model, config, data, eval_op=None, verbose=False):
+def run_epoch(session, model, config, data, iterator, eval_op=None, verbose=False):
   
   epoch_size = ((len(data) // model.batch_size) - 1) // model.num_steps
   start_time = time.time()
@@ -151,7 +151,7 @@ def run_epoch(session, model, config, data, eval_op=None, verbose=False):
     fetches["eval_op"] = eval_op
 
 
-  for step, (x, y) in enumerate(reader.ptb_iterator(data, model.batch_size, model.num_steps)):
+  for step, (x, y) in enumerate(iterator(data, model.batch_size, model.num_steps)):
       
     feed_dict = {}
     for i, (c, h) in enumerate(model.initial_state):
@@ -290,14 +290,14 @@ def main():
         lr_decay = config.lr_decay ** max(i + 1 - config.max_epoch, 0.0)
         m.assign_lr(session, config.learning_rate * lr_decay)
 
-
+        iterator = reader.ptb_iterator
         print("Epoch: %d Learning rate: %.3f" % (i + 1, session.run(m.lr)))
-        train_perplexity = run_epoch(session, m, config, train_data, eval_op=m.train_op, verbose=True)
+        train_perplexity = run_epoch(session, m, config, train_data, iterator, eval_op=m.train_op, verbose=True)
         print("Epoch: %d Train Perplexity: %.3f" % (i + 1, train_perplexity))
-        valid_perplexity = run_epoch(session, mvalid, config, valid_data)
+        valid_perplexity = run_epoch(session, mvalid, config, valid_data, iterator)
         print("Epoch: %d Valid Perplexity: %.3f" % (i + 1, valid_perplexity))
 
-      test_perplexity = run_epoch(session, mtest, config, test_data)
+      test_perplexity = run_epoch(session, mtest, config, test_data, iterator)
       print("Test Perplexity: %.3f" % test_perplexity)
 
       if save_path != "":
@@ -308,10 +308,10 @@ def main():
 ###############################################################################
 
 if __name__ == "__main__":
-#    main()
-    vocab = reader.get_vocab("./simple-examples/data/ptb.train.txt")
-    config = SmallGenConfig()
-    raw_data = reader.ptb_raw_data("./simple-examples/data")
-    train_data, valid_data, test_data, _ = raw_data
-    graph = tf.Graph()
-    generate_text(config, vocab, graph, save_path, 5)
+    main()
+#    vocab = reader.get_vocab("./simple-examples/data/ptb.train.txt")
+#    config = SmallGenConfig()
+#    raw_data = reader.ptb_raw_data("./simple-examples/data")
+#    train_data, valid_data, test_data, _ = raw_data
+#    graph = tf.Graph()
+#    generate_text(config, vocab, graph, save_path, 5)
